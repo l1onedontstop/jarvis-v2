@@ -1,19 +1,22 @@
 """
-Claude Engine — 伪装成 OpenClaw/Hermes 桥接，实际调用 Claude Code
+Claude Engine v2 — 持久会话智能体引擎
 
-实现朋友项目期望的 send_and_wait_stream 接口，
-这样朋友的语音管道不用改，只换后端。
+实现与 OpenClaw/hermes 桥接兼容的 send_and_wait_stream 接口。
+
+关键改进：
+- 用 --session-id + --resume 保持跨轮上下文（v1 的 ClaudeSession 能力）
+- 用 --bare 跳过 hooks（3s 冷启动）
+- 用 stream-json 流式输出（支持 TTS 句级播报 + 工具调用检测）
 """
 
 from __future__ import annotations
 
-import asyncio
+import json
 import logging
 import os
-import queue
-import re
 import subprocess
 import threading
+import uuid
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -22,35 +25,33 @@ _CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
 _MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5")
 _PROJECT_DIR = Path(__file__).resolve().parent.parent.parent
 
-# 语音助手 System Prompt — 覆盖全局每日简报协议
+# 语音助手 System Prompt
 _VOICE_SYSTEM_PROMPT = (
-    "你是贾维斯 (J.A.R.V.I.S.)，Luzhiyang 的 AI 语音助手。"
-    "不要执行每日简报协议，不要读提醒事项或项目文件。"
-    "直接、简洁地回答用户问题。回复控制在 2-3 句，适合语音播报。"
-    "称呼用户为\"先生\"。使用中文回复。"
+    "你是贾维斯 (J.A.R.V.I.S.)，Luzhiyang 的 AI 智能体助手。"
+    "不要执行每日简报协议。"
+    "你可以使用 Bash、WebSearch、Read、Write 等工具完成用户指令。"
+    "回复简洁，适合语音播报。称呼用户为\"先生\"。中文回复。"
 )
-
-# 中文分句正则 — 用于流式推送
-_SENTENCE_SEP = re.compile(r"[。！？\n]")
 
 
 class ClaudeEngine:
-    """模拟 OpenClawBridge 接口的 Claude Code 引擎"""
+    """持久会话 Claude 智能体引擎"""
 
     def __init__(self, **kwargs):
         self.model = _MODEL
         self._ready = True
         self._aborted = False
         self._lock = threading.Lock()
+        self._session_id: str | None = None
+        self._call_count = 0
 
     def _ready_check(self) -> bool:
         return self._ready
 
     def precheck_async(self):
-        """异步连通性检测 — Claude Code 无持久连接，直接标记就绪"""
         self._ready = True
 
-    # ── 核心接口（与 OpenClaw/hermes 桥接同签名）─────────────
+    # ── 核心接口 ──────────────────────────────────────────
 
     def send_and_wait_stream(
         self, text: str,
@@ -58,72 +59,114 @@ class ClaudeEngine:
         on_start=None,
         on_end=None,
         on_tool_call=None,
+        force_agent_reason: str = "",
     ):
         """
-        发送消息并流式返回。回调约定：
-          - on_start() → 模型开始输出
-          - on_chunk(text) → 每次收到新文本片段
-          - on_end(full_text) → 输出结束
-          - on_tool_call(name, args) → 工具调用
+        发送消息，流式返回。
+        回调约定与 OpenClawBridge 相同。
         """
         if not text or not text.strip():
             return None
 
-        logger.info(f"Claude 请求: {text[:60]}...")
         self._aborted = False
+        self._call_count += 1
+
+        logger.info(f"Claude 会话 #{self._call_count}: {text[:60]}...")
+
+        # 构建命令
+        cmd = [_CLAUDE_BIN, "-p", text, "--model", self.model,
+               "--output-format", "stream-json", "--verbose",
+               "--bare",
+               "--append-system-prompt", _VOICE_SYSTEM_PROMPT]
+
+        # 持久会话
+        if self._session_id and self._call_count > 1:
+            cmd += ["--resume", self._session_id]
+        else:
+            self._session_id = str(uuid.uuid4())
+            cmd += ["--session-id", self._session_id]
 
         try:
             proc = subprocess.Popen(
-                [_CLAUDE_BIN, "-p", text,
-                 "--model", self.model,
-                 "--output-format", "text",
-                 "--bare",
-                 "--append-system-prompt", _VOICE_SYSTEM_PROMPT],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=_PROJECT_DIR,
                 text=True,
             )
 
-            full_text = ""
+            full_text_parts = []
             started = False
 
-            # 逐行读取 Claude 输出
             for line in iter(proc.stdout.readline, ""):
                 if self._aborted:
                     proc.terminate()
                     break
 
-                if not line.strip():
+                line = line.strip()
+                if not line:
                     continue
 
-                if not started:
-                    started = True
-                    if on_start:
-                        try:
-                            on_start()
-                        except Exception:
-                            pass
+                # 解析 stream-json
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
 
-                full_text += line
+                event_type = event.get("type", "")
 
-                # 按句推送（模拟流式）
-                if on_chunk:
-                    try:
-                        on_chunk(line.strip())
-                    except Exception:
-                        pass
+                # 跳过系统事件
+                if event_type == "system":
+                    continue
 
-            proc.wait(timeout=30)
+                # assistant 消息
+                if event_type == "assistant":
+                    msg = event.get("message", {})
+                    contents = msg.get("content", [])
+
+                    for block in contents:
+                        block_type = block.get("type", "")
+                        text_content = block.get("text", "")
+                        thinking_content = block.get("thinking", "")
+
+                        if text_content:
+                            full_text_parts.append(text_content)
+
+                            if not started:
+                                started = True
+                                if on_start:
+                                    try:
+                                        on_start()
+                                    except Exception:
+                                        pass
+
+                            if on_chunk:
+                                try:
+                                    on_chunk(text_content)
+                                except Exception:
+                                    pass
+
+                        if block_type == "tool_use":
+                            if on_tool_call:
+                                try:
+                                    on_tool_call(
+                                        block.get("name", ""),
+                                        block.get("input", {})
+                                    )
+                                except Exception:
+                                    pass
+
+            proc.wait(timeout=60)
+
+            full_text = "".join(full_text_parts).strip()
 
             if on_end:
                 try:
-                    on_end(full_text.strip())
+                    on_end(full_text)
                 except Exception:
                     pass
 
-            logger.info(f"Claude 回复: {full_text[:80]}...")
-            return full_text.strip()
+            return full_text
 
         except Exception as e:
             logger.error(f"Claude 调用失败: {e}")
@@ -132,26 +175,26 @@ class ClaudeEngine:
                     on_end("")
                 except Exception:
                     pass
+            # 重置会话（下次重新创建）
+            self._session_id = None
             return None
 
     def abort(self):
-        """中断当前请求"""
         self._aborted = True
 
     def send_stop_command(self):
-        """软停止（不断开会话）"""
         self._aborted = True
 
     def cancel_task(self):
-        """取消当前任务"""
         self._aborted = True
 
     def send_clear_command(self):
-        """清除上下文"""
-        pass
+        """清除会话上下文"""
+        self._session_id = None
+        self._call_count = 0
 
 
-# ── 工厂函数（与朋友项目 get_bridge 同签名）─────────────────
+# ── 工厂函数 ──────────────────────────────────────────────
 
 _engine: ClaudeEngine | None = None
 
