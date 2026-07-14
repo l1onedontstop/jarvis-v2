@@ -22,6 +22,14 @@ _CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
 _MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5")
 _PROJECT_DIR = Path(__file__).resolve().parent.parent.parent
 
+# 语音助手 System Prompt — 覆盖全局每日简报协议
+_VOICE_SYSTEM_PROMPT = (
+    "你是贾维斯 (J.A.R.V.I.S.)，Luzhiyang 的 AI 语音助手。"
+    "不要执行每日简报协议，不要读提醒事项或项目文件。"
+    "直接、简洁地回答用户问题。回复控制在 2-3 句，适合语音播报。"
+    "称呼用户为\"先生\"。使用中文回复。"
+)
+
 # 中文分句正则 — 用于流式推送
 _SENTENCE_SEP = re.compile(r"[。！？\n]")
 
@@ -66,7 +74,11 @@ class ClaudeEngine:
 
         try:
             proc = subprocess.Popen(
-                [_CLAUDE_BIN, "-p", text, "--model", self.model, "--output-format", "text"],
+                [_CLAUDE_BIN, "-p", text,
+                 "--model", self.model,
+                 "--output-format", "text",
+                 "--bare",
+                 "--append-system-prompt", _VOICE_SYSTEM_PROMPT],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=_PROJECT_DIR,

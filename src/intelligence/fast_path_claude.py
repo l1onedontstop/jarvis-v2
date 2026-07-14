@@ -20,6 +20,12 @@ logger = logging.getLogger(__name__)
 _CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
 _FAST_MODEL = os.environ.get("CLAUDE_FAST_MODEL", "claude-haiku-4-5-20251001")
 
+_VOICE_SYSTEM_PROMPT = (
+    "你是贾维斯 (J.A.R.V.I.S.)，Luzhiyang 的 AI 语音助手。"
+    "不要执行每日简报协议。"
+    "直接、简洁地回答。1-2 句即可。称呼用户为\"先生\"。"
+)
+
 # 分句正则
 _SENTENCE_SEP = re.compile(r"[。！？\n]")
 
@@ -62,7 +68,10 @@ class FastPathClaude:
 
         try:
             proc = subprocess.Popen(
-                [_CLAUDE_BIN, "-p", prompt, "--model", self.model, "--output-format", "text"],
+                [_CLAUDE_BIN, "-p", prompt, "--model", self.model,
+                 "--output-format", "text",
+                 "--bare",
+                 "--append-system-prompt", _VOICE_SYSTEM_PROMPT],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
