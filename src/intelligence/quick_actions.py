@@ -11,10 +11,49 @@ from __future__ import annotations
 import re
 import json
 import logging
+import platform
 from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# 平台适配器（延迟加载）
+_system_adapter = None
+_wechat_adapter = None
+_calendar_adapter = None
+_reminders_adapter = None
+
+
+def _get_system():
+    global _system_adapter
+    if _system_adapter is None and platform.system() == "Darwin":
+        from adapters.macos.system import MacOSSystemAdapter
+        _system_adapter = MacOSSystemAdapter()
+    return _system_adapter
+
+
+def _get_wechat():
+    global _wechat_adapter
+    if _wechat_adapter is None and platform.system() == "Darwin":
+        from adapters.macos.wechat import MacOSWeChatAdapter
+        _wechat_adapter = MacOSWeChatAdapter()
+    return _wechat_adapter
+
+
+def _get_calendar():
+    global _calendar_adapter
+    if _calendar_adapter is None and platform.system() == "Darwin":
+        from adapters.macos.calendar import MacOSCalendarAdapter
+        _calendar_adapter = MacOSCalendarAdapter()
+    return _calendar_adapter
+
+
+def _get_reminders():
+    global _reminders_adapter
+    if _reminders_adapter is None and platform.system() == "Darwin":
+        from adapters.macos.reminders import MacOSRemindersAdapter
+        _reminders_adapter = MacOSRemindersAdapter()
+    return _reminders_adapter
 
 _CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "quick_actions.json"
 
@@ -188,42 +227,46 @@ class ActionExecutor:
         return "好的，我退下了。需要时请叫我。"
 
     def _handle_volume(self, params: dict) -> str:
-        import subprocess
+        sys_adapter = _get_system()
         text = params.get("value", "")
+        if not sys_adapter:
+            return "音量控制仅支持 macOS"
         if "大" in text or "大声" in text:
-            subprocess.run(["osascript", "-e", "set volume output volume (output volume of (get volume settings) + 10)"])
+            sys_adapter.volume_up()
             return "音量已调大"
         elif "小" in text:
-            subprocess.run(["osascript", "-e", "set volume output volume (output volume of (get volume settings) - 10)"])
+            sys_adapter.volume_down()
             return "音量已调小"
         elif "静音" in text:
-            subprocess.run(["osascript", "-e", "set volume with output muted"])
+            sys_adapter.mute()
             return "已静音"
         return "音量已调整"
 
     def _handle_sleep(self, params: dict) -> str:
-        import subprocess
-        subprocess.run(["osascript", "-e", 'tell app "System Events" to sleep'])
+        sys_adapter = _get_system()
+        if sys_adapter:
+            sys_adapter.sleep()
         return ""
 
     def _handle_open_app(self, params: dict) -> str:
         name = params.get("value", "").strip()
         if not name:
             return "你想打开什么？"
-        import subprocess
-        try:
-            subprocess.run(["open", "-a", name], timeout=5)
-            return f"已打开{name}"
-        except Exception:
-            return f"抱歉，无法打开{name}"
+        sys_adapter = _get_system()
+        if sys_adapter:
+            ok = sys_adapter.open_app(name)
+            return f"已打开{name}" if ok else f"抱歉，无法打开{name}"
+        return f"已尝试打开{name}"
 
     def _handle_search(self, params: dict) -> str:
         return ""  # 交回主流程，由 Claude 处理搜索
 
     def _handle_screenshot(self, params: dict) -> str:
-        import subprocess
-        subprocess.run(["screencapture", "-i", "/tmp/jarvis_screenshot.png"])
-        return "截图已保存"
+        sys_adapter = _get_system()
+        if sys_adapter:
+            path = sys_adapter.screenshot()
+            return f"截图已保存" if path else "截图失败"
+        return "截图功能仅支持 macOS"
 
     def _handle_greeting(self, params: dict) -> str:
         hour = datetime.now().hour
@@ -238,7 +281,10 @@ class ActionExecutor:
         return "不客气，随时为您效劳。"
 
     def _handle_send_wechat(self, params: dict) -> str:
-        if self.quick_actions.on_send_wechat:
+        wechat = _get_wechat()
+        if wechat:
+            wechat.send_message(params["contact"], params["message"])
+        elif self.quick_actions.on_send_wechat:
             self.quick_actions.on_send_wechat(params["contact"], params["message"])
         return f"正在给{params['contact']}发送微信"
 

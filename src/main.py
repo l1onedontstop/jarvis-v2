@@ -25,6 +25,7 @@ sys.path.insert(0, str(_PROJECT_DIR / "src" / "speech"))
 from state_machine import StateMachine, get_state_machine, MainState, InteractionStatus
 from intelligence.quick_actions import QuickActions, ActionExecutor, get_quick_actions, get_action_executor
 from intelligence.claude_bridge import ClaudeBridge
+from speech.speech_pipeline import SpeechPipeline, get_speech_pipeline
 
 logger = logging.getLogger("jarvis")
 
@@ -32,20 +33,22 @@ logger = logging.getLogger("jarvis")
 class JarvisV2:
     """贾维斯 v2 主控制器"""
 
-    def __init__(self):
+    def __init__(self, cli_mode: bool = False):
         self.state = get_state_machine()
         self.qa = get_quick_actions()
         self.executor = get_action_executor()
         self.claude = ClaudeBridge()
+        self.speech = get_speech_pipeline()
+        self._cli_mode = cli_mode
 
         # 回调连接
         self.qa.on_step_aside = self._on_step_aside
         self.qa.on_send_wechat = self._on_send_wechat
 
-        # 语音管道组件（延迟初始化）
-        self._asr_recognizer = None
-        self._kws_detector = None
-        self._tts_engine = None
+        # 语音管道事件连接
+        self.speech.on_wake = self._on_wake
+        self.speech.on_asr_final = self._on_asr_final
+        self.speech.on_silence_timeout = self._on_silence_timeout
 
         # 运行状态
         self._running = False
@@ -75,12 +78,11 @@ class JarvisV2:
         logger.info("⚡ J.A.R.V.I.S. v2 启动中...")
         self._running = True
 
-        # 初始化语音管道
-        await self._init_speech_pipeline()
-
-        # 播报就绪
-        greeting = self._pick_greeting()
-        await self._speak(greeting)
+        if not self._cli_mode:
+            # 语音模式：启动音频管道
+            self.speech.start()
+            greeting = self._pick_greeting()
+            self.speech.speak(greeting)
 
         # 进入主循环
         await self._main_loop()
@@ -112,25 +114,35 @@ class JarvisV2:
     # ── 主循环 ────────────────────────────────────────────
 
     async def _main_loop(self):
-        """主交互循环。Phase 1 先以文本输入模式运行。"""
-        logger.info("进入交互循环（输入 'q' 退出，输入文字模拟语音输入）")
-        print("\n" + "=" * 50)
-        print("  贾维斯 v2 — CLI 模式")
-        print("  输入文字开始对话，输入 q 退出")
-        print("=" * 50 + "\n")
+        """主交互循环。语音模式或 CLI 模式。"""
+        if self._cli_mode:
+            logger.info("进入交互循环（输入 'q' 退出，输入文字模拟语音输入）")
+            print("\n" + "=" * 50)
+            print("  贾维斯 v2 — CLI 模式")
+            print("  输入文字开始对话，输入 q 退出")
+            print("=" * 50 + "\n")
 
         while self._running:
-            try:
-                user_input = await self._get_input()
-            except (EOFError, KeyboardInterrupt):
-                break
-
-            if not user_input:
-                continue
-            if user_input.lower() in ("q", "quit", "exit"):
-                break
-
-            await self._process_input(user_input)
+            if self._cli_mode:
+                # CLI 模式：从 stdin 读取
+                try:
+                    loop = asyncio.get_event_loop()
+                    user_input = await loop.run_in_executor(None, sys.stdin.readline)
+                except (EOFError, KeyboardInterrupt):
+                    break
+                if not user_input:
+                    continue
+                user_input = user_input.strip()
+                if user_input.lower() in ("q", "quit", "exit"):
+                    break
+                if user_input:
+                    await self._process_input(user_input)
+            else:
+                # 语音模式：等待事件回调
+                # 检查超时
+                if self.state.check_idle_timeout():
+                    pass
+                await asyncio.sleep(0.5)
 
         await self.stop()
 
@@ -185,14 +197,47 @@ class JarvisV2:
     # ── TTS ────────────────────────────────────────────────
 
     async def _speak(self, text: str):
-        """TTS 播报（Phase 1：直接 print，后续接入 Piper）"""
+        """TTS 播报"""
         if not text:
             return
         self.state.start_speaking()
-        # TODO: Phase 2 接入 TTS 管道
+        self.speech.speak(text)
         self.state.finish_speaking()
 
-    # ── 唤醒 ───────────────────────────────────────────────
+    # ── 语音管道回调 ──────────────────────────────────────
+
+    def _on_wake(self, role: str):
+        """语音唤醒回调"""
+        logger.info(f"🔊 语音唤醒: {role}")
+        self.state.wake(role)
+        # 播报问候语（在新线程避免阻塞音频回调）
+        greeting = self._pick_greeting()
+        if greeting:
+            self.speech.speak(greeting)
+        # 触发一轮输入等待
+        asyncio.ensure_future(self._wake_handler())
+
+    async def _wake_handler(self):
+        """唤醒后的处理：等待用户语音输入"""
+        # 此时 state 已经进入 AWAKE_LISTENING
+        # ASR 结果由 _on_asr_final 处理
+        pass
+
+    def _on_asr_final(self, text: str):
+        """ASR 识别完成回调"""
+        text = text.strip()
+        if not text:
+            return
+        logger.info(f"📝 ASR: {text}")
+        self.state.touch()
+        asyncio.ensure_future(self._process_input(text))
+
+    def _on_silence_timeout(self):
+        """静音超时回调"""
+        logger.info("🔇 静音超时，返回待机")
+        self.state.standby(reason="silence_timeout")
+
+    # ── 唤醒问候 ───────────────────────────────────────────
 
     def _pick_greeting(self) -> str:
         """选择唤醒问候语"""
@@ -213,7 +258,7 @@ class JarvisV2:
         self.state.standby()
 
     def _on_send_wechat(self, contact: str, message: str):
-        """微信发送回调（Phase 2 实现）"""
+        """微信发送回调"""
         logger.info(f"  💬 微信 → {contact}: {message[:30]}...")
 
 
@@ -228,8 +273,13 @@ def setup_logging():
 
 
 async def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="贾维斯 v2")
+    parser.add_argument("--cli", action="store_true", help="CLI 文本输入模式（默认：语音模式）")
+    args = parser.parse_args()
+
     setup_logging()
-    jarvis = JarvisV2()
+    jarvis = JarvisV2(cli_mode=args.cli)
 
     # 信号处理
     loop = asyncio.get_event_loop()
