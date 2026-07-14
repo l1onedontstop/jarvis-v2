@@ -19,9 +19,9 @@ import soundfile as sf
 
 logger = logging.getLogger(__name__)
 
-_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)
-))))
+)))))
 
 MODEL_DIR = os.path.join(
     _PROJECT_DIR, "models", "jarvis", "en", "en_GB", "jarvis", "high"
