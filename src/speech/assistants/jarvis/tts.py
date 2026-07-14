@@ -28,41 +28,19 @@ class JarvisTTS(AssistantTTS):
         return chinese_chars > len(text.replace(' ', '')) * 0.3
 
     def _synth_chinese_file(self, text: str, output_path: str = None) -> str:
-        """中文统一走 edge-tts → mp3，15s 超时保护"""
-        import asyncio, tempfile, logging
+        """中文：edge-tts 云希 → 超时 8s → macOS say 本地兜底"""
+        import asyncio, tempfile, logging, subprocess
         path = output_path or tempfile.mktemp(suffix=".mp3")
-        async def _run():
-            import edge_tts
-            await asyncio.wait_for(
-                edge_tts.Communicate(text, "zh-CN-YunxiNeural").save(path),
-                timeout=15.0
-            )
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import threading
-                def _threaded():
-                    new_loop = asyncio.new_event_loop()
-                    new_loop.run_until_complete(_run())
-                t = threading.Thread(target=_threaded, daemon=True)
-                t.start()
-                t.join(timeout=18)
-                if t.is_alive():
-                    logging.getLogger(__name__).warning("edge-tts 超时，使用 macOS say 兜底")
-                    import subprocess
-                    alt_path = path.replace('.mp3', '.aiff')
-                    subprocess.run(["say", "-v", "Tingting", "-o", alt_path, text],
-                                   capture_output=True, timeout=30)
-                    return alt_path
-            else:
-                loop.run_until_complete(_run())
-        except (asyncio.TimeoutError, Exception) as e:
-            import logging, subprocess
-            logging.getLogger(__name__).warning(f"edge-tts 失败({e})，使用 macOS say 兜底")
-            alt_path = path.replace('.mp3', '.aiff')
-            subprocess.run(["say", "-v", "Tingting", "-o", alt_path, text],
-                           capture_output=True, timeout=30)
-            return alt_path
+            asyncio.run(asyncio.wait_for(
+                __import__('edge_tts').Communicate(text, "zh-CN-YunxiNeural").save(path),
+                timeout=8.0
+            ))
+        except (asyncio.TimeoutError, RuntimeError, Exception) as e:
+            logging.getLogger(__name__).warning(f"edge-tts 超时/失败 → macOS say 兜底")
+            path = path.replace('.mp3', '.aiff')
+            subprocess.run(["say", "-v", "Tingting", "-o", path, text],
+                           capture_output=True, timeout=15)
         return path
 
     # ── 核心合成接口 ────────────────────────────────────
