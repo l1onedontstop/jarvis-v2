@@ -18,15 +18,25 @@ from assistants.tts import AssistantTTS
 class JarvisTTS(AssistantTTS):
 
     def __init__(self, config: dict = None):
-        # 注入 assistants.json 的 tts_config（金属感后处理等）到引擎模块
         from assistants.jarvis import tts_piper
         tts_piper.configure(config or {})
 
     def is_available(self) -> bool:
-        from assistants.jarvis import tts_piper
-        return tts_piper.is_available()
+        return True  # Piper + macOS say 兜底，始终可用
+
+    def _is_chinese(self, text: str) -> bool:
+        """检测文本是否主要为中文"""
+        chinese_chars = sum(1 for c in text if '一' <= c <= '鿿')
+        return chinese_chars > len(text) * 0.3
 
     def synthesize(self, text: str, output_path: str = None, **kwargs) -> str | None:
+        # 中文 → macOS say，英文 → Piper 金属感
+        if self._is_chinese(text):
+            import subprocess, tempfile
+            path = output_path or tempfile.mktemp(suffix=".aiff")
+            subprocess.run(["say", "-v", "Tingting", "-o", path, text],
+                           capture_output=True, timeout=30)
+            return path
         from assistants.jarvis import tts_piper
         return tts_piper.synthesize(text, output_path=output_path, **kwargs)
 
