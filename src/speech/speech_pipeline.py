@@ -64,6 +64,7 @@ class SpeechPipeline:
 
         # 内部组件（延迟初始化）
         self._kws = None
+        self._kws_stream = None
         self._asr = None
         self._vad = None
         self._tts = None
@@ -142,11 +143,16 @@ class SpeechPipeline:
             f.write(merged_keywords)
 
         try:
+            model_dir_path = Path(model_dir)
             self._kws = sherpa_onnx.KeywordSpotter(
-                tokens=str(tmp_keywords),
-                model=model_dir,
+                tokens=str(model_dir_path / "tokens.txt"),
+                encoder=str(model_dir_path / "encoder-epoch-13-avg-2-chunk-16-left-64.onnx"),
+                decoder=str(model_dir_path / "decoder-epoch-13-avg-2-chunk-16-left-64.onnx"),
+                joiner=str(model_dir_path / "joiner-epoch-13-avg-2-chunk-16-left-64.onnx"),
+                keywords_file=str(tmp_keywords),
                 num_threads=2,
             )
+            self._kws_stream = self._kws.create_stream()
             logger.info("KWS 初始化完成")
         except Exception as e:
             logger.error(f"KWS 初始化失败: {e}")
@@ -216,12 +222,15 @@ class SpeechPipeline:
             audio = indata[:, 0].copy()  # 单声道
 
             # KWS 检测
-            if self._kws is not None:
+            if self._kws is not None and self._kws_stream is not None:
                 try:
-                    result = self._kws.accept_waveform(sample_rate, audio)
+                    self._kws_stream.accept_waveform(sample_rate, audio)
+                    while self._kws.is_ready(self._kws_stream):
+                        self._kws.decode_stream(self._kws_stream)
+                    result = self._kws.get_result(self._kws_stream)
                     if result and self.on_wake:
                         logger.info(f"🔊 KWS 命中: {result}")
-                        # 在事件循环中调用回调
+                        self._kws.reset_stream(self._kws_stream)
                         asyncio.run_coroutine_threadsafe(
                             self._async_emit("wake", result),
                             asyncio.get_event_loop()

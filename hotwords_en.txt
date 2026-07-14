@@ -1,0 +1,1 @@
+config/hotwords_en.txt
