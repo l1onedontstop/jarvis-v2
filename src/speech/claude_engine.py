@@ -38,6 +38,10 @@ class ClaudeEngine:
     def _ready_check(self) -> bool:
         return self._ready
 
+    def precheck_async(self):
+        """异步连通性检测 — Claude Code 无持久连接，直接标记就绪"""
+        self._ready = True
+
     # ── 核心接口（与 OpenClaw/hermes 桥接同签名）─────────────
 
     def send_and_wait_stream(
@@ -121,6 +125,18 @@ class ClaudeEngine:
     def abort(self):
         """中断当前请求"""
         self._aborted = True
+
+    def send_stop_command(self):
+        """软停止（不断开会话）"""
+        self._aborted = True
+
+    def cancel_task(self):
+        """取消当前任务"""
+        self._aborted = True
+
+    def send_clear_command(self):
+        """清除上下文"""
+        pass
 
 
 # ── 工厂函数（与朋友项目 get_bridge 同签名）─────────────────
