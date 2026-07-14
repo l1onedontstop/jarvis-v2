@@ -30,12 +30,20 @@ class JarvisTTS(AssistantTTS):
         return chinese_chars > len(text) * 0.3
 
     def synthesize(self, text: str, output_path: str = None, **kwargs) -> str | None:
-        # 中文 → macOS say，英文 → Piper 金属感
+        # 中文 → edge-tts 云希（v1 同款男声），英文 → Piper 金属感
         if self._is_chinese(text):
-            import subprocess, tempfile
-            path = output_path or tempfile.mktemp(suffix=".aiff")
-            subprocess.run(["say", "-v", "Tingting", "-o", path, text],
-                           capture_output=True, timeout=30)
+            import asyncio, tempfile
+            path = output_path or tempfile.mktemp(suffix=".mp3")
+            async def _synth():
+                import edge_tts
+                voice = "zh-CN-YunxiNeural"
+                communicate = edge_tts.Communicate(text, voice)
+                await communicate.save(path)
+            try:
+                asyncio.run(_synth())
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                loop.run_until_complete(_synth())
             return path
         from assistants.jarvis import tts_piper
         return tts_piper.synthesize(text, output_path=output_path, **kwargs)
