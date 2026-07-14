@@ -16,10 +16,13 @@ if [ -d "/Applications/control_center.app" ]; then
     open /Applications/control_center.app
 fi
 
-# 合并关键词
+# 合并关键词 + 创建个体映射
 echo "🔑 合并关键词..."
 mkdir -p keywords
 cat config/keywords/*.txt > keywords/global.txt 2>/dev/null || true
+for f in config/keywords/*.txt; do
+    ln -sf "../$f" "keywords/$(basename $f)" 2>/dev/null || true
+done
 
 # 启动语音助手
 echo "⚡ 启动贾维斯 v2（语音模式）..."
