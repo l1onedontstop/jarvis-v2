@@ -20,7 +20,7 @@ try:
 except ImportError:
     audio = None
 
-VOICES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "voices")
+VOICES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "data", "voices")
 
 # 林妹妹复用同一套音效文件，后续可替换为专属音效
 _SOUNDS = {

@@ -21,7 +21,7 @@ except ImportError:
     # 防止由于环境问题导致导入失败
     audio = None
 
-VOICES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "voices")
+VOICES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "data", "voices")
 
 _JAWESOME_SOUNDS = {
     "init": "system_ready.wav",
