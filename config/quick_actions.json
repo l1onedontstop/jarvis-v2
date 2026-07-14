@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "description": "QuickActions 规则 — 本地匹配，零延迟响应。优先级越高越先匹配。",
+  "rules": [
+    {"pattern": "(几点|几号|日期|星期几|什么日子)", "action": "time_date", "priority": 100},
+    {"pattern": "(退下|休息|不打扰|你先退下|下去吧|待机)", "action": "standby", "priority": 100},
+    {"pattern": "(音量大|大声点|音量小|小声点|静音|取消静音)", "action": "volume", "priority": 90},
+    {"pattern": "(锁屏|锁定屏幕|休眠|sleep|睡觉)", "action": "system_sleep", "priority": 90},
+    {"pattern": "打开\\s*(.+)", "action": "open_app", "priority": 80},
+    {"pattern": "(搜索|查一下|帮我查|搜一下)\\s*(.+)", "action": "search_web", "priority": 80},
+    {"pattern": "(截屏|截图|screenshot)", "action": "screenshot", "priority": 80},
+    {"pattern": "^(你好|哈喽|hi|hello|嘿|早上好|下午好|晚上好)$", "action": "greeting", "priority": 50},
+    {"pattern": "^(谢谢|多谢|thank|thanks|3Q)$", "action": "thanks", "priority": 50}
+  ]
+}

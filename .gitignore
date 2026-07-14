@@ -1,0 +1,152 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Cython debug symbols
+cython_debug/
+
+# Ruff linter cache
+.ruff_cache/
+
+# IDE config files
+.idea/
+.vscode/
+
+# Qwen Code config
+.qwen/
+
+# Build artifacts & bundles
+*.zip
+*.dmg
+*.log
+
+# Flutter specific
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.lock
+pubspec.lock
+
+# Flutter build outputs
+**/build/
+**/macos/Pods/
+**/macos/.symlinks/
+**/macos/Flutter/ephemeral/
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/linux/flutter/ephemeral/
+**/linux/.fvm/
+**/windows/flutter/ephemeral/
+
+# Flutter overlay generated files
+assistant_overlay/macos/Pods/
+assistant_overlay/macos/Flutter/
+assistant_overlay/windows/flutter/ephemeral/
+
+# Local data (runtime)
+sound_sample/*
+!sound_sample/.gitkeep
+models/
+data/enrollment/*.wav
+data/enrollment/*.json
+*.DS_Store
+
+# Auto-generated keywords file (merged at startup)
+keywords/global.txt
+
+# Auto-generated interrupt keywords (启动时由 assistants.json 的 interrupt_words 生成)
+keywords/interrupt/
+
+# Chrome device cache
+.dart_tool/chrome-device/
+
+# Log files
+*_01.log
+*_02.log
+flutter_*.log
+
+# macOS build
+macos/Runner/*.entitlements.bak
+macos/Runner/AppDelegate.swift.bak
+native/macos_system_audio_capture
+
+# Windows build
+windows/runner/*.ico.bak
+
+# Trae AI
+.trae/
+
+
+# 贾维斯粒子特效序列帧（约 376MB），改为 Release 分发，不入库
+# 下载: https://gitee.com/rubintry/assistant-x-openclaw/releases/tag/v1.0.1
+assistant_overlay/assets/jarvis/*.png
+
+# 马克7 战甲序列帧（mk7_*.png，约 47MB），存 ModelScope，不入库
+assistant_overlay/assets/ironman/*.png
+
+# Hermes 多角色网关运行时 pid（方案 B）
+.hermes_gateways.pids
+.DS_Store
+
+# 模型表与其加密 master key（含加密后的 api_key，机器相关，不入库）
+model_table.json
+data/.model_key
+data/voice_context/

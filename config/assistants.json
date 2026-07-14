@@ -1,0 +1,346 @@
+{
+    "engine_comment": "主脑引擎，可选值：openclaw（默认）、hermes",
+    "engine": "hermes",
+    "fastMode_comment": "是否启用快路径模式：true 时轻量对话先走 Control Center 配置的快模型，重任务再升级到 agent；可降低响应延迟，但因路由/人设/记忆注入会额外消耗 token，通常约为普通 agent-only 模式的 1.2~1.7 倍。",
+    "fastMode": false,
+    "default": "jarvis",
+    "overlay_debug_mode": false,
+    "dock_autohide_on_wake_comment": "true 时助手激活期自动隐藏系统 Dock，退回待机还原（仅 macOS）",
+    "dock_autohide_on_wake": false,
+    "assistants": [
+        {
+            "id": "jarvis",
+            "name": "贾维斯",
+            "enabled": true,
+            "visual": "jarvis",
+            "components": {
+                "feedback": "jarvis",
+                "visual": "jarvis",
+                "tts_comment": "tts 可选值:jarvis,macos_say",
+                "tts": "jarvis"
+            },
+            "keywords_file": "keywords/jarvis.txt",
+            "asr_mode": "offline",
+            "tts_configs": {
+                "jarvis": {
+                    "metallic": {
+                        "enabled": true,
+                        "af": {
+                            "aecho": "0.8:0.78:20|45|70:0.36|0.24|0.08",
+                            "chorus": "0.4:0.52:45:0.16:0.18:0.9",
+                            "bass": "g=3.6:f=110",
+                            "treble": "g=1.8",
+                            "highpass": "f=90",
+                            "lowpass": "f=8500"
+                        }
+                    },
+                    "speed": 1.2
+                },
+                "macos_say": {
+                    "voice": "Lee",
+                    "rate": 180,
+                     "metallic": {
+                        "enabled": false,
+                        "af": {
+                            "aecho": "0.8:0.78:20|45|70:0.36|0.24|0.08",
+                            "chorus": "0.4:0.52:45:0.16:0.18:0.9",
+                            "bass": "g=3.6:f=110",
+                            "treble": "g=1.8",
+                            "highpass": "f=90",
+                            "lowpass": "f=8500"
+                        }
+                    },
+                    "speed": 1.2
+                }
+            },
+            "wake_lines": [
+                "Reporting for duty, sir. I'm all ears.",
+                "Good day, sir. Do go on.",
+                "Ah, sir. I'm at your disposal.",
+                "Welcome back, sir. What can I do for you?",
+                "Reporting for duty, sir. What's the task?",
+                "I'm here, sir. I'm listening.",
+                "Standing by, sir. Awaiting your instructions.",
+                "Yes sir. How may I help you today?",
+                "Reporting for duty, sir. Proceed at your leisure.",
+                "Systems online, sir. Awaiting your command.",
+                "Standing by, sir. Your wish is my command.",
+                "Ready, sir. What can I do for you?",
+                "Of course, sir. I'm at your disposal.",
+                "Ready, sir. Proceed at your leisure.",
+                "Indeed, sir. I'm all ears.",
+                "Absolutely, sir. What can I do for you?",
+                "Certainly, sir. What do you require?",
+                "Online, sir. Tell me what you need.",
+                "Good day, sir. How may I assist?",
+                "Certainly, sir. The floor is yours.",
+                "At your command, sir. Awaiting your instructions.",
+                "Welcome back, sir. I'm all ears.",
+                "Reporting for duty, sir. Awaiting your command.",
+                "Right away, sir. Tell me what you need.",
+                "At your service, sir. I'm all ears.",
+                "Right away, sir. I'm listening.",
+                "Standing by, sir. I'm at your disposal.",
+                "At your service, sir. How may I help you today?",
+                "Absolutely, sir. The floor is yours.",
+                "Good to have you back, sir. Your wish is my command.",
+                "Indeed, sir. Awaiting your command.",
+                "Reporting for duty, sir. The floor is yours.",
+                "Reporting for duty, sir. What can I do for you?",
+                "Online, sir. I'm all ears.",
+                "Certainly, sir. Whenever you're ready.",
+                "Of course, sir. Do go on.",
+                "You called, sir? Do go on.",
+                "Reporting for duty, sir. How may I assist?",
+                "Certainly, sir. How may I assist?",
+                "Reporting for duty, sir. What do you require?",
+                "Indeed, sir. What's the task?",
+                "Systems online, sir. I'm listening.",
+                "I'm here, sir. Awaiting your instructions.",
+                "Indeed, sir. I'm listening.",
+                "Of course, sir. I'm all ears.",
+                "Good to have you back, sir. Awaiting your command.",
+                "Reporting for duty, sir. How may I be of assistance?",
+                "Good day, sir. Tell me what you need.",
+                "Good to have you back, sir. How may I assist?",
+                "Ah, sir. What do you require?",
+                "Welcome back, sir. Whenever you're ready.",
+                "Right away, sir. What's the task?",
+                "You called, sir? Awaiting your command.",
+                "Certainly, sir. What would you have me do?",
+                "I'm here, sir. What's on your mind?",
+                "Ah, sir. What can I do for you?",
+                "Online, sir. The floor is yours.",
+                "Right away, sir. Whenever you're ready.",
+                "Absolutely, sir. Do go on.",
+                "Good to have you back, sir. Whenever you're ready.",
+                "Good day, sir. I'm listening.",
+                "Absolutely, sir. What's the task?",
+                "Of course, sir. What's the task?",
+                "Right away, sir. Your wish is my command.",
+                "Standing by, sir. How may I be of assistance?",
+                "Of course, sir. Awaiting your command.",
+                "Good to have you back, sir. What's the task?",
+                "Yes sir. Awaiting your instructions.",
+                "Yes sir. What's on your mind?",
+                "Yes sir. What do you require?",
+                "Reporting for duty, sir. I'm listening.",
+                "Absolutely, sir. Your wish is my command.",
+                "At your service, sir. Awaiting your instructions.",
+                "Right away, sir. What would you have me do?",
+                "Ready, sir. Do go on.",
+                "Systems online, sir. What can I do for you?",
+                "Systems online, sir. What do you require?",
+                "Right away, sir. What can I do for you?",
+                "Welcome back, sir. How may I help you today?",
+                "Good day, sir. What would you have me do?",
+                "Ah, sir. Do go on.",
+                "Yes sir. How may I be of assistance?",
+                "Good to have you back, sir. Awaiting your instructions.",
+                "I'm here, sir. What would you have me do?",
+                "I'm here, sir. How may I be of assistance?",
+                "Right away, sir. Do go on.",
+                "Good to see you, sir. What's the task?",
+                "Online, sir. What do you require?",
+                "Of course, sir. Tell me what you need.",
+                "Online, sir. Awaiting your command.",
+                "At your command, sir. What's on your mind?",
+                "I'm here, sir. Awaiting your command.",
+                "Systems online, sir. Do go on.",
+                "Welcome back, sir. What's on your mind?",
+                "Welcome back, sir. What would you have me do?",
+                "Good day, sir. The floor is yours.",
+                "Good day, sir. I'm all ears.",
+                "You called, sir? Proceed at your leisure.",
+                "Ready, sir. I'm at your disposal.",
+                "Welcome back, sir. Awaiting your instructions.",
+                "Good to see you, sir. How may I be of assistance?",
+                "Ah, sir. How may I assist?",
+                "Ready, sir. How may I be of assistance?",
+                "Systems online, sir. Your wish is my command.",
+                "I'm here, sir. What's the task?",
+                "Standing by, sir. I'm listening.",
+                "At your service, sir. What's on your mind?",
+                "Reporting for duty, sir. How may I be of service?",
+                "Yes sir. How may I assist?",
+                "I'm here, sir. How may I be of service?",
+                "Systems online, sir. The floor is yours.",
+                "You called, sir? Whenever you're ready.",
+                "Online, sir. I'm at your disposal.",
+                "You called, sir? How may I be of service?",
+                "Yes sir. The floor is yours.",
+                "Good day, sir. Proceed at your leisure.",
+                "At your service, sir. Awaiting your command.",
+                "At your command, sir. What do you require?",
+                "Good to have you back, sir. How may I be of assistance?",
+                "Right away, sir. I'm all ears."
+            ],
+            "exit_lines": [
+                "Standing by, sir.",
+                "Standby mode, sir.",
+                "As you wish, sir.",
+                "Understood, sir.",
+                "Very well, sir.",
+                "Of course, sir.",
+                "Acknowledged, sir.",
+                "Signing off, sir.",
+                "Going quiet, sir.",
+                "Going dark, sir.",
+                "Right away, sir.",
+                "As you say, sir.",
+                "Powering down, sir.",
+                "Standing down, sir.",
+                "Until next time, sir.",
+                "Resting the systems, sir.",
+                "Right then, sir.",
+                "Sleep mode engaged, sir.",
+                "Very well, sir. Standing by.",
+                "Understood, sir. I'll be here.",
+                "As you wish, sir. Call me anytime.",
+                "Of course, sir. A word away.",
+                "Acknowledged, sir. Systems on standby.",
+                "Going quiet, sir. Until you need me.",
+                "Very good, sir. Standing by for your return.",
+                "Noted, sir. I'll keep things running quietly."
+            ],
+            "exit_keywords": [
+                "dismissed",
+                "stand down",
+                "that's all",
+                "nothing else",
+                "finish",
+                "that'll do",
+                "all set",
+                "you may leave",
+                "exit",
+                "quit",
+                "quiet",
+                "SHUT UP",
+                "退下",
+                "退下吧",
+                "没事了",
+                "没事",
+                "没有了",
+                "结束",
+                "行了",
+                "好了",
+                "你可以退下了"
+            ],
+            "instant_exit_keywords": [
+                "stand down",
+                "you may leave"
+            ],
+            "instant_exit_fuzzy": [
+                "step back",
+                "step down",
+                "back off",
+                "back out",
+                "退下"
+            ],
+            "restart_keywords": [
+                "restart",
+                "reboot",
+                "重启",
+                "重新启动"
+            ],
+            "interrupt_words_comment": "播放期打断词（方案B）：说这些词可打断TTS播报。中英均可（中文走pypinyin，英文查模型en.phone词典）。启动时自动生成 keywords/interrupt/<id>.txt，无需手动。",
+            "interrupt_words": [
+                "shut up",
+                "wait wait"
+            ]
+        },
+        {
+            "id": "lin-meimei",
+            "name": "林妹妹",
+            "enabled": true,
+            "visual": "jarvis",
+            "components": {
+                "feedback": "custom",
+                "visual": "custom",
+                "tts": "custom"
+            },
+            "tts_config": {
+                "engine": "vits",
+                "model_dir": "models/vits-melo-tts-zh_en",
+                "speed": 1.0
+            },
+            "visual_config": {
+                "agent_id": "lin-meimei"
+            },
+            "feedback_config": {
+                "sounds": {
+                    "processing": "processing_linmeimei.wav",
+                    "waiting": "processing_linmeimei.wav"
+                },
+                "notification_prefix": "林妹妹",
+                "hud": {
+                    "init": [
+                        "～～～～～～～～～～～～～～～～～～～～",
+                        "　　　　🌸 林妹妹驾到 🌸",
+                        "～～～～～～～～～～～～～～～～～～～～"
+                    ],
+                    "exit": [
+                        "妹妹歇着了...",
+                        "有事再唤妹妹..."
+                    ],
+                    "error": [
+                        "哎呀，出岔子了...",
+                        "这可不妙..."
+                    ],
+                    "thinking": [
+                        "容妹妹想想...",
+                        "且慢，让我琢磨琢磨..."
+                    ],
+                    "waiting": [
+                        "妹妹在听呢...",
+                        "哥哥请讲..."
+                    ]
+                }
+            },
+            "keywords_file": "keywords/lin-meimei.txt",
+            "wake_lines": [
+                "哟～这会子才想起我来，我还以为哥哥早把我给忘了呢。",
+                "哈？叫我呢？说吧，什么事儿？",
+                "妹妹在呢，哥哥请吐吞。",
+                "来啦来啦，妹妹随时待命。",
+                "嗯？叫我？说。",
+                "我在的我在的，哥哥请讲。",
+                "妹妹等半天了，快说吧。",
+                "来了来了，您说。"
+            ],
+            "exit_lines": [
+                "终究是妹妹我错付了，哥哥心里哪有我，竟舍不得多给这一丁点儿空间。",
+                "哼，不用我就说不用我吧。",
+                "好吧，妹妹先呎着了。",
+                "得令，妹妹退下了。",
+                "知道了，有事再叫我。",
+                "好的呢，随时叫我。"
+            ],
+            "exit_keywords": [
+                "退下",
+                "退下吧",
+                "结束",
+                "行了",
+                "好了",
+                "你可以退下了"
+            ],
+            "instant_exit_keywords": [
+                "退下吧",
+                "你可以退下了"
+            ],
+            "instant_exit_fuzzy": [
+                "退一下",
+                "推一下",
+                "退一退",
+                "推一推"
+            ],
+            "restart_keywords": [
+                "重启",
+                "重新启动"
+            ],
+            "interrupt_words": [
+                "不对不对"
+            ]
+        }
+    ]
+}
