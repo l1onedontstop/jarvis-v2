@@ -1,8 +1,20 @@
 #!/bin/bash
-# 贾维斯 v2 — 语音模式启动（朋友音频管道 + Claude 引擎）
+# 贾维斯 v2 — 语音模式启动
 set -e
 cd "$(dirname "$0")"
 source ./venv/bin/activate
+
+# 启动 HUD 特效悬浮窗
+if [ -d "/Applications/assistant_overlay.app" ]; then
+    echo "🎨 启动 HUD 特效悬浮窗..."
+    open /Applications/assistant_overlay.app
+fi
+
+# 启动控制中心
+if [ -d "/Applications/control_center.app" ]; then
+    echo "🎛️ 启动 Control Center..."
+    open /Applications/control_center.app
+fi
 
 # 合并关键词
 echo "🔑 合并关键词..."

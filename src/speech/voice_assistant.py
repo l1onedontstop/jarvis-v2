@@ -2637,6 +2637,7 @@ class VoiceAssistant:
                             recognition_result = standby_recognition_result
                             keyword_stream = self.keyword_spotter.create_stream()
                             self.visual.show_wake_effect()
+                            self.jarvis.play_sound("wake")
                             print("[实验] 身份验证通过，立即激活并继续听取本句指令...")
                             continue
 
@@ -2743,6 +2744,7 @@ class VoiceAssistant:
                             recognition_stream = self.recognizer.create_stream()
                             keyword_stream = self.keyword_spotter.create_stream()
                             self.visual.show_wake_effect()
+                            self.jarvis.play_sound("wake")
                             print("[实验] 验证通过，助手已激活")
 
                             if command:
@@ -2875,6 +2877,7 @@ class VoiceAssistant:
                                 speech_started = False
 
                             self.visual.show_wake_effect()
+                            self.jarvis.play_sound("wake")
                             # 唤醒后发"voice-assistant-wake-up"给后端引擎，由引擎返回
                             # 问候播报。改为在线程里跑 + 立即恢复音频流，支持唤醒后打断。
                             # 例外：退下时软停的后台任务仍在跑 → 不发问候（问候会让模型
