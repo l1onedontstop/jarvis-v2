@@ -203,6 +203,10 @@ class ActionExecutor:
             "greeting": self._handle_greeting,
             "thanks": self._handle_thanks,
             "send_wechat": self._handle_send_wechat,
+            "today_schedule": self._handle_today_schedule,
+            "add_reminder": self._handle_add_reminder,
+            "presence_check": self._handle_presence_check,
+            "self_intro": self._handle_self_intro,
             "marker_step_aside": self._handle_marker_step_aside,
             "marker_focus_mode": self._handle_marker_focus_mode,
             "marker_send_wechat": self._handle_marker_send_wechat,
@@ -299,9 +303,33 @@ class ActionExecutor:
         return ""
 
     def _handle_marker_send_wechat(self, params: dict) -> str:
-        if self.quick_actions.on_send_wechat:
-            self.quick_actions.on_send_wechat(params["contact"], params["message"])
+        wechat = _get_wechat()
+        if wechat:
+            wechat.send_message(params["contact"], params["message"])
         return ""
+
+    def _handle_today_schedule(self, params: dict) -> str:
+        cal = _get_calendar()
+        if cal:
+            events = cal.get_today_events()
+            if events:
+                return f"今天有 {len(events)} 个日程。"
+            return "今天没有日程安排。"
+        return ""
+
+    def _handle_add_reminder(self, params: dict) -> str:
+        text = params.get("value", "")
+        rem = _get_reminders()
+        if rem and text:
+            rem.create(text)
+            return f"已添加提醒：{text}"
+        return ""
+
+    def _handle_presence_check(self, params: dict) -> str:
+        return "在的，先生。随时为您效劳。"
+
+    def _handle_self_intro(self, params: dict) -> str:
+        return "我是贾维斯，您的 AI 智能体助手。能对话、能搜索、能控制系统。"
 
 
 # 全局
