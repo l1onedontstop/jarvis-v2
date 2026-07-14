@@ -28,17 +28,41 @@ class JarvisTTS(AssistantTTS):
         return chinese_chars > len(text.replace(' ', '')) * 0.3
 
     def _synth_chinese_file(self, text: str, output_path: str = None) -> str:
-        """中文统一走 edge-tts → mp3"""
-        import asyncio, tempfile
+        """中文统一走 edge-tts → mp3，15s 超时保护"""
+        import asyncio, tempfile, logging
         path = output_path or tempfile.mktemp(suffix=".mp3")
         async def _run():
             import edge_tts
-            await edge_tts.Communicate(text, "zh-CN-YunxiNeural").save(path)
+            await asyncio.wait_for(
+                edge_tts.Communicate(text, "zh-CN-YunxiNeural").save(path),
+                timeout=15.0
+            )
         try:
-            asyncio.run(_run())
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(_run())
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import threading
+                def _threaded():
+                    new_loop = asyncio.new_event_loop()
+                    new_loop.run_until_complete(_run())
+                t = threading.Thread(target=_threaded, daemon=True)
+                t.start()
+                t.join(timeout=18)
+                if t.is_alive():
+                    logging.getLogger(__name__).warning("edge-tts 超时，使用 macOS say 兜底")
+                    import subprocess
+                    alt_path = path.replace('.mp3', '.aiff')
+                    subprocess.run(["say", "-v", "Tingting", "-o", alt_path, text],
+                                   capture_output=True, timeout=30)
+                    return alt_path
+            else:
+                loop.run_until_complete(_run())
+        except (asyncio.TimeoutError, Exception) as e:
+            import logging, subprocess
+            logging.getLogger(__name__).warning(f"edge-tts 失败({e})，使用 macOS say 兜底")
+            alt_path = path.replace('.mp3', '.aiff')
+            subprocess.run(["say", "-v", "Tingting", "-o", alt_path, text],
+                           capture_output=True, timeout=30)
+            return alt_path
         return path
 
     # ── 核心合成接口 ────────────────────────────────────
