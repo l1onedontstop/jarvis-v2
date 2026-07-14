@@ -1513,9 +1513,14 @@ class VoiceAssistant:
             return
 
         try:
-            from fast_path import FastPathClient
+            # v2: 使用 Claude Haiku 作为快速路径
+            _speech_dir = os.path.dirname(os.path.abspath(__file__))
+            _intel_dir = os.path.join(os.path.dirname(_speech_dir), "intelligence")
+            if _intel_dir not in sys.path:
+                sys.path.insert(0, _intel_dir)
+            from fast_path_claude import FastPathClaude
             engine = _load_engine()
-            self._fast_path = FastPathClient(
+            self._fast_path = FastPathClaude(
                 should_stop=self._stop_openclaw_request.is_set,
                 agent_name=self.current_cfg.get("name") or assistant_id,
                 agent_id=assistant_id,
@@ -3290,7 +3295,7 @@ class VoiceAssistant:
         )
         if use_fast:
             try:
-                from fast_path import AgentHandoff
+                from fast_path_claude import AgentHandoff
                 return fp.send_and_wait_stream(
                     text, on_chunk=on_chunk, on_start=on_start, on_end=on_end,
                 )
