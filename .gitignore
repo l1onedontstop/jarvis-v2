@@ -135,12 +135,10 @@ windows/runner/*.ico.bak
 .trae/
 
 
-# 贾维斯粒子特效序列帧（约 376MB），改为 Release 分发，不入库
-# 下载: https://gitee.com/rubintry/assistant-x-openclaw/releases/tag/v1.0.1
-assistant_overlay/assets/jarvis/*.png
-
-# 马克7 战甲序列帧（mk7_*.png，约 47MB），存 ModelScope，不入库
-assistant_overlay/assets/ironman/*.png
+# 贾维斯粒子特效序列帧（约 376MB），从 ModelScope 下载，不入库
+# 下载: https://modelscope.cn/datasets/rubintry/jarvis/files
+ui/overlay/assets/jarvis/
+ui/overlay/assets/ironman/
 
 # Hermes 多角色网关运行时 pid（方案 B）
 .hermes_gateways.pids
@@ -150,3 +148,7 @@ assistant_overlay/assets/ironman/*.png
 model_table.json
 data/.model_key
 data/voice_context/
+data/.api_token
+src/data/
+logs/
+.claude/

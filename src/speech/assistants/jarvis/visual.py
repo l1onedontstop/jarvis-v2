@@ -87,14 +87,29 @@ class JarvisVisual(AssistantVisual):
 
     def show_wake_effect(self):
         """唤醒特效 — 先切换 agent，再唤醒"""
-        # 先发送 agent 切换命令
         self.send("agent:jarvis")
-        # 然后发送唤醒
         self.send("wake")
+
+    def show_listening(self):
+        self.send("listening")
+
+    def show_thinking(self):
+        self.send("thinking")
+
+    def show_speaking(self):
+        self.send("speaking")
+
+    def show_executing(self):
+        self.send("executing")
+
+    def show_standby(self):
+        """待机呼吸 — 光环缩小到左下角，缓慢脉冲"""
+        self.send("agent:jarvis")
+        self.send("standby")
 
     def hide_effects(self):
         if self.debug_mode:
-            return  # 调试模式：召唤后保持显示，不隐藏
+            return
         self.send("hide")
 
     def clear_texts(self):

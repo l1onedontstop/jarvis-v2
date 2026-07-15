@@ -22,7 +22,7 @@ class WindowsVoiceAssistantService implements VoiceAssistantServiceBase {
     final home = Platform.environment['USERPROFILE'] ?? 
                  Platform.environment['HOME'] ?? 
                  'C:\\Users\\${Platform.environment['USERNAME']}';
-    return '$home\\.openclaw\\workspace\\voice-assistant\\assistant-x-openclaw';
+    return '$home\\jarvis-v2';
   }
 
   String _safeDecode(List<int> bytes) {

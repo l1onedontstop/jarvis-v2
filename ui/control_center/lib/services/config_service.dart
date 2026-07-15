@@ -6,8 +6,7 @@ class ConfigService {
         Platform.environment['HOME'] ??
         Platform.environment['USERPROFILE'] ??
         '';
-    final base =
-        '$home/.openclaw/workspace/voice-assistant/assistant-x-openclaw';
+    final base = '$home/jarvis-v2';
     return Platform.isWindows ? base.replaceAll('/', '\\') : base;
   }
 

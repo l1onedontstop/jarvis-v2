@@ -5,7 +5,7 @@ import '../base/speaker_service_base.dart';
 class MacOSSpeakerService implements SpeakerServiceBase {
   String get _expandedPath {
     final home = Platform.environment['HOME'] ?? '';
-    return '$home/.openclaw/workspace/voice-assistant/assistant-x-openclaw';
+    return '$home/jarvis-v2';
   }
 
   String get _venvPythonPath => '$_expandedPath/venv/bin/python';

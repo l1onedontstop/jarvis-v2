@@ -262,13 +262,269 @@ class OpenClawHistoryReader(IHistoryReader):
             return ""
 
 
+# ── Claude Code ───────────────────────────────────────────────────────
+
+_CLAUDE_HOME = os.path.expanduser("~/.claude")
+_GLOBAL_MEMORY_DIR = os.path.join(_CLAUDE_HOME, "projects", "-Users-luzhiyang----", "memory")
+_OBSIDIAN_VAULT = os.path.expanduser("~/Documents/Obsidian Vault")
+
+
+def _claude_project_hash(cwd: str) -> str:
+    """将项目路径转为 Claude Code 的 project hash 格式。"""
+    return (cwd or "").rstrip("/").replace("/", "-")
+
+
+class ClaudeCodeHistoryReader(IHistoryReader):
+    """Claude Code 引擎的 session/memory 只读接口。
+
+    从 ~/.claude/projects/<hash>/*.jsonl 读取 session 历史，
+    从 ~/.claude/projects/-Users-luzhiyang----/memory/ 读取长期记忆。
+    """
+
+    def __init__(self, agent_id: str, project_dir: str = ""):
+        self.aid = _norm(agent_id)
+        cwd = project_dir or os.environ.get(
+            "CLAUDE_CODE_PROJECT_DIR",
+            os.path.expanduser("~/jarvis-v2"),
+        )
+        self._project_hash = _claude_project_hash(cwd)
+        self.sessions_dir = os.path.join(
+            _CLAUDE_HOME, "projects", self._project_hash
+        )
+        # 全局 CLAUDE.md 作为用户画像源
+        self.user_md = os.path.join(_CLAUDE_HOME, "CLAUDE.md")
+
+    def is_available(self) -> bool:
+        return os.path.isdir(self.sessions_dir)
+
+    def _current_jsonl(self) -> str | None:
+        """返回最近修改的 session JSONL 文件路径。"""
+        if not os.path.isdir(self.sessions_dir):
+            return None
+        try:
+            candidates = sorted(
+                [
+                    os.path.join(self.sessions_dir, f)
+                    for f in os.listdir(self.sessions_dir)
+                    if f.endswith(".jsonl")
+                ],
+                key=os.path.getmtime,
+                reverse=True,
+            )
+            return candidates[0] if candidates else None
+        except OSError:
+            return None
+
+    @staticmethod
+    def _extract_text(content) -> str:
+        """Claude Code content 可能是字符串或 [{type:text,text:...}] 块数组。"""
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            parts = [
+                b.get("text", "")
+                for b in content
+                if isinstance(b, dict) and b.get("type") == "text"
+            ]
+            return " ".join(p for p in parts if p).strip()
+        return ""
+
+    def recent_turns(self, limit: int = 6) -> list[dict]:
+        path = self._current_jsonl()
+        if not path:
+            return voice_context_store.recent_turns(self.aid, limit=limit)
+        turns: list[dict] = []
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line)
+                    except (ValueError, json.JSONDecodeError):
+                        continue
+                    if obj.get("type") not in ("user", "assistant"):
+                        continue
+                    msg = obj.get("message") or {}
+                    role = msg.get("role")
+                    if role not in ("user", "assistant"):
+                        continue
+                    text = self._extract_text(msg.get("content"))
+                    if not text:
+                        continue
+                    # 过滤系统唤醒标记
+                    if "voice-assistant-wake-up" in text:
+                        continue
+                    turns.append({"role": role, "content": text})
+        except OSError:
+            pass
+        shared = voice_context_store.recent_turns(self.aid, limit=limit)
+        return (turns + shared)[-limit:] if shared else turns[-limit:]
+
+    def search_memory(self, query: str, limit: int = 5) -> list[str]:
+        """搜索长期记忆：优先 Obsidian Vault，再全局 memory 目录。
+
+        Obsidian Vault (~/Documents/Obsidian Vault/) 是用户的主力知识库，
+        Agent 写入的记忆和用户手工笔记都在这里。
+        """
+        results: list[str] = []
+
+        # 1) Obsidian Vault：最高优先级
+        if os.path.isdir(_OBSIDIAN_VAULT):
+            try:
+                query_lower = (query or "").lower()
+                for fname in sorted(os.listdir(_OBSIDIAN_VAULT)):
+                    fpath = os.path.join(_OBSIDIAN_VAULT, fname)
+                    if not fname.endswith(".md") or not os.path.isfile(fpath):
+                        continue
+                    name_score = 0
+                    fname_lower = fname.lower()
+                    for token in re.findall(r"[\w一-鿿]{2,}", query_lower):
+                        if token in fname_lower:
+                            name_score += 1
+                    try:
+                        with open(fpath, "r", encoding="utf-8") as f:
+                            body = f.read()[:800]
+                    except OSError:
+                        continue
+                    body_lower = body.lower()
+                    body_score = sum(
+                        1 for token in re.findall(r"[\w一-鿿]{2,}", query_lower)
+                        if token in body_lower
+                    )
+                    total_score = name_score * 3 + body_score
+                    if total_score > 0:
+                        # 取正文前几行
+                        lines = [l.strip() for l in body.split("\n")
+                                 if l.strip() and not l.startswith("#")]
+                        snippet = " ".join(lines[:3])[:300]
+                        results.append((total_score, fname, snippet))
+                results.sort(key=lambda x: x[0], reverse=True)
+                results = [f"[Obsidian] {r[2]}" for r in results[:limit]]
+            except OSError:
+                pass
+
+        if len(results) >= limit:
+            return results[:limit]
+
+        # 2) 全局 memory 目录：补充搜索
+        if os.path.isdir(_GLOBAL_MEMORY_DIR):
+            try:
+                query_lower = (query or "").lower()
+                for fname in sorted(os.listdir(_GLOBAL_MEMORY_DIR)):
+                    if fname == "MEMORY.md":
+                        continue
+                    fpath = os.path.join(_GLOBAL_MEMORY_DIR, fname)
+                    if not fname.endswith(".md"):
+                        continue
+                    name_score = 0
+                    fname_lower = fname.lower()
+                    for token in re.findall(r"[\w一-鿿]{2,}", query_lower):
+                        if token in fname_lower:
+                            name_score += 1
+                    try:
+                        with open(fpath, "r", encoding="utf-8") as f:
+                            body = f.read()[:600]
+                    except OSError:
+                        continue
+                    body_lower = body.lower()
+                    body_score = sum(
+                        1 for token in re.findall(r"[\w一-鿿]{2,}", query_lower)
+                        if token in body_lower
+                    )
+                    total_score = name_score * 3 + body_score
+                    if total_score > 0:
+                        # 跳过 YAML frontmatter (--- 块)
+                        in_frontmatter = False
+                        content_lines = []
+                        for line in body.split("\n"):
+                            stripped = line.strip()
+                            if stripped == "---":
+                                in_frontmatter = not in_frontmatter
+                                continue
+                            if in_frontmatter:
+                                continue
+                            if stripped and not stripped.startswith("name:"):
+                                content_lines.append(stripped)
+                        snippet = " ".join(content_lines[:3])[:300]
+                        results.append((total_score, fname, snippet))
+                results.sort(key=lambda x: x[0], reverse=True)
+                results = [f"[{r[1]}] {r[2]}" for r in results[:limit]]
+            except OSError:
+                pass
+
+        if len(results) >= limit:
+            return results[:limit]
+
+        # 2) 历史 session JSONL 兜底：关键词 grep
+        if not os.path.isdir(self.sessions_dir):
+            return results
+        tokens = sorted(
+            re.findall(r"[\w一-鿿]{2,}", query or ""), key=len, reverse=True
+        )[:3]
+        if not tokens:
+            return results
+        try:
+            session_files = sorted(
+                [
+                    os.path.join(self.sessions_dir, f)
+                    for f in os.listdir(self.sessions_dir)
+                    if f.endswith(".jsonl")
+                ],
+                key=os.path.getmtime,
+                reverse=True,
+            )
+            for sf in session_files:
+                if len(results) >= limit:
+                    break
+                try:
+                    with open(sf, "r", encoding="utf-8") as f:
+                        content = f.read()
+                except OSError:
+                    continue
+                for token in tokens:
+                    if token.lower() in content.lower():
+                        # 提取相关行
+                        for line in content.split("\n"):
+                            if token.lower() in line.lower():
+                                try:
+                                    obj = json.loads(line)
+                                    msg = obj.get("message") or {}
+                                    text = self._extract_text(
+                                        msg.get("content")
+                                    )
+                                    if text and text[:200] not in {
+                                        r.split("] ", 1)[-1][:200]
+                                        for r in results
+                                    }:
+                                        results.append(
+                                            f"[session] {text[:300]}"
+                                        )
+                                        break
+                                except (ValueError, json.JSONDecodeError):
+                                    pass
+                        break
+        except OSError:
+            pass
+        return results[:limit]
+
+    def user_profile(self, limit_chars: int = 600) -> str:
+        """从 ~/.claude/CLAUDE.md 读取用户画像。"""
+        try:
+            with open(self.user_md, "r", encoding="utf-8") as f:
+                return f.read().strip()[:limit_chars]
+        except OSError:
+            return ""
+
+
 # ── 工厂 ─────────────────────────────────────────────────────────────
 
-def get_history_reader(engine: str, agent_id: str) -> IHistoryReader | None:
+def get_history_reader(engine: str, agent_id: str,
+                       project_dir: str = "") -> IHistoryReader | None:
     """按引擎返回对应 reader；未知引擎返回 None（快路径退化为无上下文）。"""
     eng = (engine or "").strip().lower()
     if eng == "hermes":
         return HermesHistoryReader(agent_id)
     if eng == "openclaw":
         return OpenClawHistoryReader(agent_id)
+    if eng == "claude-code":
+        return ClaudeCodeHistoryReader(agent_id, project_dir=project_dir)
     return None

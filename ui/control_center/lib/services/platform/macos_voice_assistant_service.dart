@@ -19,7 +19,7 @@ class MacOSVoiceAssistantService implements VoiceAssistantServiceBase {
 
   String get expandedPath {
     final home = Platform.environment['HOME'] ?? '';
-    return '$home/.openclaw/workspace/voice-assistant/assistant-x-openclaw';
+    return '$home/jarvis-v2';
   }
 
   @override

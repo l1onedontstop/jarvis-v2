@@ -196,7 +196,11 @@ class ActionExecutor:
             "time_date": self._handle_time_date,
             "standby": self._handle_standby,
             "volume": self._handle_volume,
+            "volume_up": self._handle_volume_up,
+            "volume_down": self._handle_volume_down,
+            "volume_mute": self._handle_volume_mute,
             "system_sleep": self._handle_sleep,
+            "lock_screen": self._handle_lock_screen,
             "open_app": self._handle_open_app,
             "search_web": self._handle_search,
             "screenshot": self._handle_screenshot,
@@ -207,6 +211,9 @@ class ActionExecutor:
             "add_reminder": self._handle_add_reminder,
             "presence_check": self._handle_presence_check,
             "self_intro": self._handle_self_intro,
+            "browser_maximize": self._handle_browser_maximize,
+            "browser_restore": self._handle_browser_restore,
+            "multi_agent": self._handle_multi_agent,
             "marker_step_aside": self._handle_marker_step_aside,
             "marker_focus_mode": self._handle_marker_focus_mode,
             "marker_send_wechat": self._handle_marker_send_wechat,
@@ -246,11 +253,50 @@ class ActionExecutor:
             return "已静音"
         return "音量已调整"
 
+    def _handle_volume_up(self, params: dict) -> str:
+        sys_adapter = _get_system()
+        if sys_adapter:
+            sys_adapter.volume_up()
+        return ""
+
+    def _handle_volume_down(self, params: dict) -> str:
+        sys_adapter = _get_system()
+        if sys_adapter:
+            sys_adapter.volume_down()
+        return ""
+
+    def _handle_volume_mute(self, params: dict) -> str:
+        sys_adapter = _get_system()
+        if sys_adapter:
+            sys_adapter.mute()
+        return ""
+
     def _handle_sleep(self, params: dict) -> str:
         sys_adapter = _get_system()
         if sys_adapter:
             sys_adapter.sleep()
         return ""
+
+    def _handle_lock_screen(self, params: dict) -> str:
+        sys_adapter = _get_system()
+        if sys_adapter:
+            sys_adapter.lock_screen()
+        return ""
+
+    def _handle_browser_maximize(self, params: dict) -> str:
+        sys_adapter = _get_system()
+        if sys_adapter:
+            sys_adapter.browser_maximize()
+        return ""
+
+    def _handle_browser_restore(self, params: dict) -> str:
+        sys_adapter = _get_system()
+        if sys_adapter:
+            sys_adapter.browser_restore()
+        return ""
+
+    def _handle_multi_agent(self, params: dict) -> str:
+        return ""  # 交回 Agent 处理多 Agent 编排
 
     def _handle_open_app(self, params: dict) -> str:
         name = params.get("value", "").strip()

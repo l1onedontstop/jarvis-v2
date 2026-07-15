@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 class CameraController:
     def __init__(self, device_index=0, warmup_frames=8, capture_timeout=8.0,
-                 video_size="1920x1080", framerate=30):
+                 video_size="1280x720", framerate=30):
         self.device_index = device_index
         self.warmup_frames = warmup_frames
         self.capture_timeout = capture_timeout

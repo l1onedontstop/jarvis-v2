@@ -22,7 +22,10 @@ _STORE_DIR = os.path.join(_PROJECT_DIR, "data", "voice_context")
 _MAX_CONTENT_CHARS = 4000
 _MAX_FILE_BYTES = 2 * 1024 * 1024
 _TRIM_KEEP_LINES = 1200
+_MAX_AGE_SECONDS = 7 * 24 * 3600  # 7 天 TTL
+_TTL_CHECK_INTERVAL = 50  # 每 50 次写入检查一次 TTL
 _lock = threading.RLock()
+_append_counters: dict[str, int] = {}
 
 
 def _norm(agent_id: str) -> str:
@@ -61,12 +64,19 @@ def append_turn(
     }
     try:
         with _lock:
-            os.makedirs(_STORE_DIR, exist_ok=True)
+            os.makedirs(_STORE_DIR, mode=0o700, exist_ok=True)
             p = _path(agent_id)
             with open(p, "a", encoding="utf-8") as f:
                 f.write(json.dumps(item, ensure_ascii=False, separators=(",", ":")))
                 f.write("\n")
+            os.chmod(p, 0o600)
             _trim_if_needed(p)
+            # 每 N 次写入触发一次 TTL 清理
+            key = _norm(agent_id)
+            _append_counters[key] = _append_counters.get(key, 0) + 1
+            if _append_counters[key] >= _TTL_CHECK_INTERVAL:
+                _append_counters[key] = 0
+                _trim_by_age(p)
     except Exception:
         return
 
@@ -105,6 +115,7 @@ def _read_tail(agent_id: str, max_lines: int = 200) -> list[dict]:
     p = _path(agent_id)
     if not os.path.exists(p):
         return []
+    cutoff = time.time() - _MAX_AGE_SECONDS
     out = []
     try:
         with _lock:
@@ -115,7 +126,7 @@ def _read_tail(agent_id: str, max_lines: int = 200) -> list[dict]:
                 obj = json.loads(line)
             except (ValueError, json.JSONDecodeError):
                 continue
-            if isinstance(obj, dict):
+            if isinstance(obj, dict) and obj.get("ts", 0) >= cutoff:
                 out.append(obj)
     except OSError:
         return []
@@ -131,6 +142,37 @@ def _trim_if_needed(path: str) -> None:
         tmp = f"{path}.tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             f.writelines(lines)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except OSError:
+        return
+
+
+def _trim_by_age(path: str, max_age: int = _MAX_AGE_SECONDS) -> None:
+    """移除超过 TTL 的条目。"""
+    if not os.path.exists(path):
+        return
+    try:
+        cutoff = time.time() - max_age
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        kept = []
+        removed = 0
+        for line in lines:
+            try:
+                obj = json.loads(line)
+                if isinstance(obj, dict) and obj.get("ts", 0) >= cutoff:
+                    kept.append(line)
+                else:
+                    removed += 1
+            except (ValueError, json.JSONDecodeError):
+                kept.append(line)  # 损坏的行保留，不丢数据
+        if removed == 0:
+            return
+        tmp = f"{path}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.writelines(kept)
+        os.chmod(tmp, 0o600)
         os.replace(tmp, path)
     except OSError:
         return

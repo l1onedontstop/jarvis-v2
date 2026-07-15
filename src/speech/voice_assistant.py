@@ -19,6 +19,7 @@ import time
 import threading
 import queue
 import tempfile
+import uuid
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
@@ -39,15 +40,57 @@ def _detect_best_provider() -> str:
 _assistant_instance = None
 PID_FILE = os.path.join(tempfile.gettempdir(), "voice_assistant.pid")
 API_PORT = 18790
+_API_TOKEN: str | None = None
+
+def _generate_api_token() -> str:
+    """生成启动令牌并写入 0600 文件。Control Center 通过该文件获取令牌。"""
+    global _API_TOKEN
+    _API_TOKEN = uuid.uuid4().hex
+    os.makedirs(os.path.dirname(_API_TOKEN_FILE), mode=0o700, exist_ok=True)
+    with open(_API_TOKEN_FILE, "w") as f:
+        f.write(_API_TOKEN)
+    os.chmod(_API_TOKEN_FILE, 0o600)
+    return _API_TOKEN
+
+
+def _verify_token(handler) -> bool:
+    """验证请求中的 API 令牌。支持 ?token=xxx 查询参数和 X-API-Token 头。"""
+    from urllib.parse import urlparse, parse_qs
+    parsed = urlparse(handler.path)
+    token = ""
+    # 1) Query param: ?token=xxx
+    for v in parse_qs(parsed.query).get("token", []):
+        token = v
+        break
+    # 2) Header: X-API-Token
+    if not token:
+        token = handler.headers.get("X-API-Token", "")
+    return token == _API_TOKEN and _API_TOKEN is not None
 
 
 class _ExitAPIHandler(BaseHTTPRequestHandler):
+    def _unauthorized(self):
+        self.send_response(403)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"error": "unauthorized"}).encode())
+
+    def _require_token(self) -> bool:
+        if _verify_token(self):
+            return True
+        self._unauthorized()
+        return False
+    def _route(self) -> str:
+        """提取不带查询参数的路径。"""
+        from urllib.parse import urlparse
+        return urlparse(self.path).path
+
     def do_POST(self):
         global _dnd_mode
-        # 注：模型表读写不在此 HTTP server 上——它只在助手启动时监听，而模型配置
-        # 需在启动前就能做。改由 Control Center 直接调 venv 子进程 scripts/model_cli.py
-        # 读写 model_table.json（助手运行时每轮读文件，配置改动自动生效）。
-        if self.path == "/exit":
+        if not self._require_token():
+            return
+        route = self._route()
+        if route == "/exit":
             if _assistant_instance is not None:
                 threading.Thread(
                     target=_assistant_instance.exit_standby, daemon=True
@@ -61,7 +104,7 @@ class _ExitAPIHandler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": "assistant not ready"}).encode())
-        elif self.path in ("/heavy/add", "/heavy/remove"):
+        elif route in ("/heavy/add", "/heavy/remove"):
             self.send_response(410)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -69,13 +112,13 @@ class _ExitAPIHandler(BaseHTTPRequestHandler):
                 "error": "heavy_patterns deprecated",
                 "message": "Fast path now uses light_patterns.json as an allowlist.",
             }).encode())
-        elif self.path == "/dnd":
+        elif route == "/dnd":
             _dnd_mode = True
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"status": "ok", "dnd": True}).encode())
-        elif self.path == "/dnd/disable":
+        elif route == "/dnd/disable":
             _dnd_mode = False
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -86,7 +129,10 @@ class _ExitAPIHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_GET(self):
-        if self.path == "/heavy/list":
+        if not self._require_token():
+            return
+        route = self._route()
+        if route == "/heavy/list":
             self.send_response(410)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -97,8 +143,8 @@ class _ExitAPIHandler(BaseHTTPRequestHandler):
             }).encode())
             return
 
-        # 摄像头抓帧：抓一帧 JPEG 直接回给调用方（Hermes 用 curl -o 落地后交 vision_analyze）
-        if self.path.startswith("/camera/snapshot"):
+        # 摄像头抓帧：抓一帧 JPEG 直接回给调用方
+        if route.startswith("/camera/snapshot"):
             import tempfile
             from camera import get_camera_controller
 
@@ -111,20 +157,29 @@ class _ExitAPIHandler(BaseHTTPRequestHandler):
                 return
             out = os.path.join(tempfile.gettempdir(), "jarvis_cam_snapshot.jpg")
             path = cam.capture(out)
-            if path and os.path.exists(path) and os.path.getsize(path) > 0:
-                data = open(path, "rb").read()
-                self.send_response(200)
-                self.send_header("Content-Type", "image/jpeg")
-                self.send_header("Content-Length", str(len(data)))
-                self.end_headers()
-                self.wfile.write(data)
-            else:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(
-                    {"error": "capture failed (摄像头未授权？首次需在控制中心授权)"}
-                ).encode())
+            try:
+                if path and os.path.exists(path) and os.path.getsize(path) > 0:
+                    with open(path, "rb") as fh:
+                        data = fh.read()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "image/jpeg")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                else:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps(
+                        {"error": "capture failed (摄像头未授权？首次需在控制中心授权)"}
+                    ).encode())
+            finally:
+                # 安全清理：截图用后立即删除
+                if path and os.path.exists(path):
+                    try:
+                        os.unlink(path)
+                    except OSError:
+                        pass
         else:
             self.send_response(404)
             self.end_headers()
@@ -193,6 +248,7 @@ from .log_setup import setup_logging, get_diag_logger
 from .lifecycle import get_lifecycle_manager
 from .media_pause import MediaPauseHook
 from .dock_control import DockAutohideHook
+from .proactive_engine import ProactiveEngine
 
 # 文件级诊断/错误日志（只落盘，不进控制中心）
 _diag = get_diag_logger()
@@ -204,6 +260,7 @@ from .assistants import (
 
 # ── assistants.json 配置加载 ─────────────────────────────────
 _PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_API_TOKEN_FILE = os.path.join(_PROJECT_DIR, "data", ".api_token")
 _ASSISTANTS_CFG_PATH = os.path.join(_PROJECT_DIR, "config", "assistants.json")
 _ENV_PATH = os.path.join(_PROJECT_DIR, ".env")
 
@@ -319,7 +376,7 @@ _SPEAKER_NOTIFY_PORT = 18792  # control_center TCP 通知端口
 
 # ── 活体检测配置（实验期默认 shadow mode：记录分数，不拦截唤醒）─────────────
 _LIVENESS_ENABLED = _env_bool("VOICE_ASSISTANT_LIVENESS_ENABLED", True)
-_LIVENESS_ENFORCE = _env_bool("VOICE_ASSISTANT_LIVENESS_ENFORCE", False)
+_LIVENESS_ENFORCE = _env_bool("VOICE_ASSISTANT_LIVENESS_ENFORCE", True)
 _LIVENESS_THRESHOLD = _env_float("VOICE_ASSISTANT_LIVENESS_THRESHOLD", 0.5)
 _LIVENESS_MODEL_PATH = os.path.join(
     _PROJECT_DIR,
@@ -883,6 +940,11 @@ class VoiceAssistant:
         # OpenClaw bridge 会在切换 assistant 时动态创建
         self.openclaw = None
         self._init_openclaw()
+
+        # Proactive Engine：主动关怀（低电量、午餐、久坐提醒、摄像头存在检测）
+        self.proactive = ProactiveEngine()
+        self.proactive.on_speak = self._proactive_speak
+        self.proactive.on_camera_check = self._camera_presence_check
 
         print("语音助手初始化完成！")
         print(
@@ -1505,6 +1567,19 @@ class VoiceAssistant:
         self.openclaw = get_bridge(agent_id=agent_id, namespace=agent_id)
         self.openclaw.precheck_async()
 
+        # 跨会话持久上下文读取器：注入 Agent 引擎（无论 fastMode 开不开都注）
+        # 让 Agent 有长期记忆，同时避免它自己去翻 JSONL 文件。
+        engine = _load_engine()
+        try:
+            from history_reader import get_history_reader
+            reader = get_history_reader(engine, assistant_id, project_dir=_PROJECT_DIR)
+            if reader is not None:
+                if hasattr(self.openclaw, 'set_history_reader'):
+                    self.openclaw.set_history_reader(reader)
+                print(f"[记忆] 已注入 Agent 持久上下文（engine={engine}, available={reader.is_available()}）")
+        except Exception as e:
+            print(f"[记忆] Agent 持久上下文注入失败（忽略）: {e}")
+
         # 快路径（分流第一线）：直连 Control Center 配置的快模型。
         # fastMode=false 或未配置模型表时，_route_stream 自动全走 agent。
         if not _load_fast_mode():
@@ -1519,7 +1594,6 @@ class VoiceAssistant:
             if _intel_dir not in sys.path:
                 sys.path.insert(0, _intel_dir)
             from fast_path_claude import FastPathClaude
-            engine = _load_engine()
             self._fast_path = FastPathClaude(
                 should_stop=self._stop_openclaw_request.is_set,
                 agent_name=self.current_cfg.get("name") or assistant_id,
@@ -1535,16 +1609,9 @@ class VoiceAssistant:
                     print(f"[分流] 已注入 {assistant_id} 人设（{len(persona)} 字，引擎 {engine}）")
             except Exception as e:  # noqa: BLE001 — 人设可选，失败退化为无人格
                 print(f"[分流] 人设加载失败（忽略）: {e}")
-            # session/memory 读取器：让轻消息也能拿到 agent lane 的近期对话与长期记忆，
-            # 消除"轻消息丢往期上下文"的分叉（本地直读，fail-open）。
-            try:
-                from history_reader import get_history_reader
-                reader = get_history_reader(engine, assistant_id)
-                if reader is not None:
-                    self._fast_path.set_history_reader(reader)
-                    print(f"[分流] 已挂载 {engine} 历史读取器（available={reader.is_available()}）")
-            except Exception as e:  # noqa: BLE001 — 历史读取可选，失败退化为无引擎上下文
-                print(f"[分流] 历史读取器挂载失败（忽略）: {e}")
+            # 快路径也用同一个 history reader
+            if reader is not None:
+                self._fast_path.set_history_reader(reader)
         except Exception as e:  # noqa: BLE001 — 快路径不可用绝不能拖垮桥初始化
             print(f"[分流] 快路径初始化失败（忽略，全走 agent）: {e}")
             self._fast_path = None
@@ -2038,7 +2105,7 @@ class VoiceAssistant:
             # self._clear_openclaw_context()
             self.jarvis.on_exit()
             self.visual.clear_texts()
-            self.visual.hide_effects()
+            self.visual.show_standby()
             if not _is_instant_exit(_recog):
                 play_prebuilt_voice("exit", _random_exit_line())
                 while is_tts_playing():
@@ -3388,8 +3455,90 @@ class VoiceAssistant:
         except Exception:  # noqa: BLE001
             return ""
 
+    def _proactive_speak(self, msg: str):
+        """ProactiveEngine 回调：在非繁忙时主动播报。"""
+        if not self._is_openclaw_busy and not is_tts_playing():
+            text_to_speech_play(msg)
+
+    def _camera_presence_check(self):
+        """待机摄像头存在检测：抓帧 → 分析画面 → 有人则用 JARVIS 口吻主动搭话。"""
+        if self.is_awake or self._is_openclaw_busy or is_tts_playing():
+            return
+
+        try:
+            from camera import get_camera_controller
+            import tempfile, os, json, base64, urllib.request
+
+            cam = get_camera_controller()
+            if not cam.is_available():
+                return
+
+            tmp = os.path.join(tempfile.gettempdir(), "jarvis_presence_check.jpg")
+            path = cam.capture(tmp)
+            if not path or not os.path.exists(path):
+                return
+
+            with open(path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode()
+            os.unlink(path)
+
+            # 步骤 1：判断是否有人 + 描述画面（Python urllib 直连，不经过 shell）
+            payload = json.dumps({
+                "model": "minicpm-v4.6:1b",
+                "prompt": (
+                    "Describe what you see in this image in ONE short Chinese sentence. "
+                    "If there is NO person visible, reply with just the word 'EMPTY'. "
+                    "Be specific: what is the person doing, holding, looking at?"
+                ),
+                "images": [b64],
+                "stream": False
+            }).encode()
+            req = urllib.request.Request(
+                "http://localhost:11434/api/generate",
+                data=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                data = json.loads(resp.read().decode())
+            subprocess.Popen(
+                ["ollama", "stop", "minicpm-v4.6:1b"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+
+            description = data.get("response", "").strip()
+            if not description or "EMPTY" in description.upper():
+                return
+
+            print(f"[摄像头] 检测到用户: {description}")
+
+            # 步骤 2：用 JARVIS 口吻生成搭话（调 Claude CLI）
+            import subprocess as sp
+            jarvis_prompt = (
+                "You are JARVIS. Read the scene description below — it's from a camera "
+                "snapshot of Sir at his desk. Generate ONE brief, witty remark in Chinese "
+                "about what you see. Dry British humor. Don't greet, don't ask questions — "
+                "just make a clever observation. One sentence, voice-friendly, no markdown.\n\n"
+                f"Scene: {description}"
+            )
+            jarvis_result = sp.run(
+                ["claude", "-p", jarvis_prompt,
+                 "--model", os.environ.get("CLAUDE_MODEL", "claude-sonnet-5"),
+                 "--output-format", "text", "--bare", "--max-turns", "1"],
+                capture_output=True, text=True, timeout=20
+            )
+            remark = jarvis_result.stdout.strip()
+
+            if remark:
+                self.is_awake = True
+                text_to_speech_play(remark)
+
+        except Exception as e:
+            print(f"[摄像头] 存在检测异常: {e}")
+
     def _on_recognized(self, text: str):
         """识别结果 → 发送给当前主脑 → 整体合成播报回复"""
+        self.proactive.touch()  # 用户交互 → 重置工作计时器
+
         # 唤醒待决策：上一句问了"要不要继续"，这句就是回答。
         if self._pending_resume_decision:
             self._pending_resume_decision = False
@@ -3718,6 +3867,7 @@ class VoiceAssistant:
     def run(self):
         """运行语音助手"""
         self.jarvis.system_ready()
+        self.proactive.start()
         try:
             self._process_audio()
         except KeyboardInterrupt:
@@ -3729,6 +3879,7 @@ class VoiceAssistant:
     def stop(self):
         """停止语音助手"""
         self.stop_event.set()
+        self.proactive.stop()
         if self._system_audio_aec is not None:
             self._system_audio_aec.close()
         print("语音助手已关闭。")
@@ -4057,9 +4208,10 @@ def main():
     assistant = VoiceAssistant(args, default_cfg, all_assistants, keyword_mapping)
     _assistant_instance = assistant
 
+    token = _generate_api_token()
     api_thread = threading.Thread(target=_start_api_server, daemon=True)
     api_thread.start()
-    print(f"API server started on port {API_PORT}")
+    print(f"API server started on port {API_PORT} (token: {token[:8]}…)")
 
     # 单例收敛 + PID 抢占已在 main() 顶部完成（慢构造之前），此处不再重复。
 

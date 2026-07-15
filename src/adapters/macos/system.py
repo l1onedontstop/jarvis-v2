@@ -110,3 +110,36 @@ class MacOSSystemAdapter:
             ["osascript", "-e", f"tell application \"System Events\" to set autohide of dock preferences to {val}"],
             capture_output=True, timeout=5
         )
+
+    def browser_maximize(self) -> bool:
+        """放大当前浏览器窗口（Safari/Chrome）"""
+        try:
+            # 尝试 Safari
+            script = (
+                'tell application "System Events"\n'
+                '  set frontApp to name of first application process whose frontmost is true\n'
+                '  if frontApp contains "Safari" then\n'
+                '    tell application "Safari" to activate\n'
+                '    keystroke "f" using {control down, command down}\n'
+                '  else if frontApp contains "Chrome" then\n'
+                '    tell application "Google Chrome" to activate\n'
+                '    keystroke "f" using {control down, command down}\n'
+                '  end if\n'
+                'end tell'
+            )
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
+            return True
+        except Exception:
+            return False
+
+    def browser_restore(self) -> bool:
+        """恢复浏览器窗口大小"""
+        try:
+            subprocess.run(
+                ["osascript", "-e",
+                 'tell application "System Events" to keystroke "f" using {control down, command down}'],
+                capture_output=True, timeout=5
+            )
+            return True
+        except Exception:
+            return False

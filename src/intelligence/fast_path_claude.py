@@ -50,21 +50,87 @@ class FastPathClaude:
     def set_history_reader(self, reader):
         self._history_reader = reader
 
+    def _build_context_prompt(self, text: str) -> str:
+        """构建带记忆上下文的 prompt。"""
+        parts = []
+
+        # 1) 近期对话上下文（voice_context_store + history_reader）
+        recent = self._get_recent_turns()
+        if recent:
+            history_text = "\n".join(
+                f"{m['role']}: {m['content'][:200]}"
+                for m in recent[-6:]
+            )
+            parts.append(f"# 近期对话\n{history_text}")
+
+        # 2) 长期记忆（history_reader.search_memory）
+        if self._history_reader:
+            try:
+                if self._history_reader.is_available():
+                    memories = self._history_reader.search_memory(text, limit=3)
+                    if memories:
+                        mem_text = "\n".join(f"- {m[:200]}" for m in memories)
+                        parts.append(f"# 相关记忆\n{mem_text}")
+            except Exception:
+                pass
+
+        # 3) 用户画像
+        if self._history_reader:
+            try:
+                if self._history_reader.is_available():
+                    profile = self._history_reader.user_profile(limit_chars=400)
+                    if profile:
+                        parts.append(f"# 用户画像\n{profile[:400]}")
+            except Exception:
+                pass
+
+        if not parts:
+            return text
+
+        context = "\n\n".join(parts)
+        return f"{context}\n\n---\n用户: {text}"
+
+    def _get_recent_turns(self) -> list[dict]:
+        """获取近期对话轮次。"""
+        try:
+            import sys, os
+            _speech_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(
+                    os.path.abspath(__file__)
+                ))), "speech"
+            )
+            if _speech_dir not in sys.path:
+                sys.path.insert(0, _speech_dir)
+            import voice_context_store
+            turns = voice_context_store.recent_turns(self._agent_id, limit=8)
+            if turns:
+                return turns
+        except Exception:
+            pass
+
+        if self._history_reader:
+            try:
+                if self._history_reader.is_available():
+                    return self._history_reader.recent_turns(limit=6)
+            except Exception:
+                pass
+        return []
+
     def send_and_wait_stream(
         self, text: str,
         on_chunk=None, on_start=None, on_end=None, on_tool_call=None
     ):
         """
-        用 Haiku 快速回复，流式推送
+        用 Haiku 快速回复，流式推送（带长记忆上下文注入）
         """
         if not text or not text.strip():
             return None
 
         logger.info(f"FastPath(Haiku): {text[:60]}...")
 
-        prompt = text
+        prompt = self._build_context_prompt(text)
         if self._persona:
-            prompt = f"[角色: {self._persona}]\n\n用户: {text}"
+            prompt = f"[角色: {self._persona}]\n\n{prompt}"
 
         try:
             proc = subprocess.Popen(

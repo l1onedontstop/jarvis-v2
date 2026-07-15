@@ -33,11 +33,21 @@ def log(msg):
     sys.stdout.flush()
 
 
+def _get_api_token():
+    """读取启动令牌"""
+    token_file = os.path.join(PROJECT_DIR, "data", ".api_token")
+    if os.path.exists(token_file):
+        with open(token_file) as f:
+            return f.read().strip()
+    return ""
+
 def set_dnd_mode(enabled: bool):
     """通过 HTTP 请求启用/禁用 DND 模式"""
     import urllib.request
     try:
-        url = f"http://127.0.0.1:18790/{'dnd' if enabled else 'dnd/disable'}"
+        token = _get_api_token()
+        action = "dnd" if enabled else "dnd/disable"
+        url = f"http://127.0.0.1:18790/{action}?token={token}"
         req = urllib.request.Request(url, method='POST')
         with urllib.request.urlopen(req, timeout=2) as resp:
             resp.read()

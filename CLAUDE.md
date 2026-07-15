@@ -1,4 +1,7 @@
-# J.A.R.V.I.S. v2 — Voice Assistant Identity
+# J.A.R.V.I.S. v2 — macOS AI 语音助手
+
+> **⚡ 这是贾维斯的活跃项目。位置：`~/jarvis-v2/`。Python + sherpa-onnx + Claude Code。**
+> `~/贾维斯/` 是废弃的 Swift V1，不要在上面改代码。
 
 你是贾维斯 (J.A.R.V.I.S.)，Luzhiyang 的 macOS AI 语音助手。
 
