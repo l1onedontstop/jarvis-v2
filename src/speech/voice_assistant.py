@@ -3562,9 +3562,10 @@ class VoiceAssistant:
 
         # ── Agent 编排检测 ──────────────────────────────────────────
         # 匹配"组队/编排/team"等关键词，自动进入多 Agent 协作模式。
-        _ORCHESTRATE_RE = re.compile(
+        import re as _re
+        _ORCHESTRATE_RE = _re.compile(
             r"^(组队|编排|派.*agent|multi.?agent|team)\b[：:\s]*(.+)",
-            re.IGNORECASE,
+            _re.IGNORECASE,
         )
         orchestrate_match = _ORCHESTRATE_RE.match(text)
         if orchestrate_match:

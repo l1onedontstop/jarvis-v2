@@ -50,6 +50,10 @@ class FastPathClaude:
     def set_history_reader(self, reader):
         self._history_reader = reader
 
+    def reset(self):
+        """重置快路径状态（退下时清空滚动上下文）。"""
+        pass
+
     def _build_context_prompt(self, text: str) -> str:
         """构建带记忆上下文的 prompt。"""
         parts = []
