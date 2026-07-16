@@ -4054,8 +4054,8 @@ def get_args():
         default="models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20/joiner-epoch-13-avg-2-chunk-16-left-64.onnx",
     )
     parser.add_argument("--keywords-file", type=str, default="keywords/lin-meimei.txt")
-    parser.add_argument("--keywords-score", type=float, default=0.15)
-    parser.add_argument("--keywords-threshold", type=float, default=0.15)
+    parser.add_argument("--keywords-score", type=float, default=0.10)
+    parser.add_argument("--keywords-threshold", type=float, default=0.10)
 
     # 语音识别模型参数
     parser.add_argument(
