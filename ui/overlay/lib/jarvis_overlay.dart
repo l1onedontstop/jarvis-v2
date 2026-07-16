@@ -483,7 +483,7 @@ class JarvisAgentVisual implements AgentVisual {
     _pulseController = AnimationController(
       vsync: vsync,
       duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
+    );
 
     _ringOpacityController = AnimationController(
       vsync: vsync,
@@ -517,10 +517,28 @@ class JarvisAgentVisual implements AgentVisual {
       value: 0.0,
     );
 
-    _outerRingController.repeat();
-    _arcsController.repeat();
-    _dataRingController.repeat();
-    _innerRingController.repeat();
+    // Animation controllers are created paused — _startAnimations() kicks them off on wake.
+  }
+
+  // 动效是否活跃，控制序列帧播放器的启停（ValueNotifier 触发局部重建）
+  final ValueNotifier<bool> _isEffectActive = ValueNotifier(false);
+
+  void _startAnimations() {
+    _isEffectActive.value = true;
+    if (!_outerRingController.isAnimating) _outerRingController.repeat();
+    if (!_arcsController.isAnimating) _arcsController.repeat();
+    if (!_dataRingController.isAnimating) _dataRingController.repeat();
+    if (!_innerRingController.isAnimating) _innerRingController.repeat();
+    if (!_pulseController.isAnimating) _pulseController.repeat(reverse: true);
+  }
+
+  void _stopAnimations() {
+    _isEffectActive.value = false;
+    _outerRingController.stop();
+    _arcsController.stop();
+    _dataRingController.stop();
+    _innerRingController.stop();
+    _pulseController.stop();
   }
 
   @override
@@ -556,6 +574,7 @@ class JarvisAgentVisual implements AgentVisual {
       _isHiding = false;
       _currentEffect = 'wake';
       print('Set effect to: wake');
+      _startAnimations();
       _ringOpacityController.forward();
       _ringScaleController.animateTo(
         1.0,
@@ -599,6 +618,7 @@ class JarvisAgentVisual implements AgentVisual {
         if (status == AnimationStatus.dismissed && _isHiding) {
           _ringOpacityController.removeStatusListener(onComplete);
           _isHiding = false;
+          _stopAnimations();
         }
       }
 
@@ -739,6 +759,7 @@ class JarvisAgentVisual implements AgentVisual {
     _dataRingController.dispose();
     _innerRingController.dispose();
     _pulseController.dispose();
+    _isEffectActive.dispose();
   }
 
   @override
@@ -845,9 +866,10 @@ class JarvisAgentVisual implements AgentVisual {
                         width: size,
                         height: size,
                         child: JarvisSequencePlayer(
-                          assetDir: 'assets/jarvis', // 只需要指定目录
+                          assetDir: 'assets/jarvis',
                           assetSuffix: '.png',
                           fps: 30,
+                          runningNotifier: _isEffectActive,
                         ),
                       );
                     },
@@ -1071,9 +1093,10 @@ class JarvisAgentVisual implements AgentVisual {
                           width: terminalHeight / 3 * 2,
                           height: terminalHeight / 3 * 2,
                           child: JarvisSequencePlayer(
-                            assetDir: 'assets/ironman', // 只需要指定目录
+                            assetDir: 'assets/ironman',
                             assetSuffix: '.png',
                             fps: 30,
+                            runningNotifier: _isEffectActive,
                           ),
                         );
                       },
@@ -1091,14 +1114,16 @@ class JarvisAgentVisual implements AgentVisual {
 
 class JarvisSequencePlayer extends StatefulWidget {
   final int fps;
-  final String assetDir; // 资源目录，例如: 'assets/jarvis'
-  final String assetSuffix; // 文件后缀，例如: '.png'
+  final String assetDir;
+  final String assetSuffix;
+  final ValueNotifier<bool>? runningNotifier;
 
   const JarvisSequencePlayer({
     super.key,
     this.fps = 60,
     required this.assetDir,
     this.assetSuffix = '.png',
+    this.runningNotifier,
   });
 
   @override
@@ -1116,6 +1141,28 @@ class _JarvisSequencePlayerState extends State<JarvisSequencePlayer>
   void initState() {
     super.initState();
     _initSequence();
+    widget.runningNotifier?.addListener(_onRunningChanged);
+  }
+
+  @override
+  void didUpdateWidget(JarvisSequencePlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.runningNotifier != widget.runningNotifier) {
+      oldWidget.runningNotifier?.removeListener(_onRunningChanged);
+      widget.runningNotifier?.addListener(_onRunningChanged);
+      // Sync state immediately on notifier change
+      _onRunningChanged();
+    }
+  }
+
+  void _onRunningChanged() {
+    if (!_isLoaded) return;
+    final running = widget.runningNotifier?.value ?? true;
+    if (running) {
+      if (!_controller.isAnimating) _controller.repeat();
+    } else {
+      _controller.stop();
+    }
   }
 
   // 1. 异步初始化：先动态读取文件数量，再加载图片
@@ -1127,8 +1174,9 @@ class _JarvisSequencePlayerState extends State<JarvisSequencePlayer>
       final duration = Duration(
         milliseconds: (_framePaths.length / widget.fps * 1000).round(),
       );
-      _controller = AnimationController(vsync: this, duration: duration)
-        ..repeat();
+      _controller = AnimationController(vsync: this, duration: duration);
+      final running = widget.runningNotifier?.value ?? true;
+      if (running) _controller.repeat();
       if (mounted) setState(() => _isLoaded = true);
     }
   }
@@ -1174,9 +1222,10 @@ class _JarvisSequencePlayerState extends State<JarvisSequencePlayer>
 
   @override
   void dispose() {
+    widget.runningNotifier?.removeListener(_onRunningChanged);
     _controller.dispose();
     for (var img in _cachedFrames) {
-      img.dispose(); // 释放底层内存
+      img.dispose();
     }
     super.dispose();
   }
