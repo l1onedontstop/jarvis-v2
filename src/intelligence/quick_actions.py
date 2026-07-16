@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import json
+import os
 import logging
 import platform
 from datetime import datetime
@@ -92,6 +93,17 @@ class QuickActions:
         self.on_send_wechat = None      # callable(contact, message)
         self.on_focus_mode = None       # callable(enter: bool)
         self._missed_queries: list[str] = []
+        self._missed_log_path = os.path.join(os.path.expanduser("~"), ".missed_queries.jsonl")
+
+    def _log_missed_query(self, text: str):
+        """持久化未命中查询，便于回顾和扩展规则。"""
+        entry = {"text": text, "at": datetime.now().isoformat()}
+        try:
+            line = json.dumps(entry, ensure_ascii=False) + "\n"
+            with open(self._missed_log_path, "a", encoding="utf-8") as f:
+                f.write(line)
+        except Exception:
+            pass  # 日志写入失败不影响主流程
 
     def _load_rules(self):
         """加载规则：优先从 JSON 配置，回退到内置默认"""
@@ -143,6 +155,7 @@ class QuickActions:
 
         # 3) 未命中，记录以便后续分析
         self._missed_queries.append(text)
+        self._log_missed_query(text)
         return None
 
     def _check_markers(self, text: str) -> dict | None:
