@@ -3560,6 +3560,32 @@ class VoiceAssistant:
         agent_label = self._agent_label()
         print(f"\n[→ {agent_label}] {text}")
 
+        # ── Agent 编排检测 ──────────────────────────────────────────
+        # 匹配"组队/编排/team"等关键词，自动进入多 Agent 协作模式。
+        _ORCHESTRATE_RE = re.compile(
+            r"^(组队|编排|派.*agent|multi.?agent|team)\b[：:\s]*(.+)",
+            re.IGNORECASE,
+        )
+        orchestrate_match = _ORCHESTRATE_RE.match(text)
+        if orchestrate_match:
+            task = orchestrate_match.group(2).strip()
+            if task:
+                print(f"[编排] 检测到编排请求: {task}")
+                text = (
+                    "[系统指令 — 编排模式]\n"
+                    "这是一个需要多 Agent 协作的任务。请按以下方式处理：\n\n"
+                    "1. 先花一点时间分析任务，在心里拆解为 2-4 个独立子任务\n"
+                    "2. 对每个子任务，使用 Agent 工具 spawn 一个专门 agent 处理\n"
+                    "   — agent 角色根据子任务性质动态决定，不限于固定类型\n"
+                    "   — 独立的子任务并行 spawn，有依赖的串行处理\n"
+                    "3. 每 spawn 一个 agent 时，回复中用一行标记：\n"
+                    "   📡 {角色}: {简短描述正在做的事}\n"
+                    "4. 所有 agent 完成后，用你的 JARVIS 口吻，合成一段适合语音朗读的中文结论\n"
+                    "   — 不列点、不写报告、不叙述过程。只说结论和建议。\n"
+                    "5. 如果任务其实不需要多 agent（简单问题），直接回答，不要强行编排。\n\n"
+                    f"用户任务：{task}"
+                )
+
         # 在发送给主脑之前的一瞬间，还原特效大小
         self.visual.reset_speaking_scale()
 

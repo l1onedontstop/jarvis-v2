@@ -309,7 +309,11 @@ class ActionExecutor:
         return ""
 
     def _handle_multi_agent(self, params: dict) -> str:
-        return ""  # 交回 Agent 处理多 Agent 编排
+        task = params.get("task", "").strip()
+        if not task:
+            return ""
+        # 返回编排标记，下游 _on_recognized / _route_stream 识别后进入多 Agent 模式
+        return f"组队：{task}"
 
     def _handle_open_app(self, params: dict) -> str:
         name = params.get("value", "").strip()
