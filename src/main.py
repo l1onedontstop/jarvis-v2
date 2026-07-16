@@ -276,7 +276,8 @@ async def main():
     import argparse
     parser = argparse.ArgumentParser(description="贾维斯 v2")
     parser.add_argument("--cli", action="store_true", help="CLI 文本输入模式（默认：语音模式）")
-    args = parser.parse_args()
+    parser.add_argument("--provider", type=str, default="coreml", help="sherpa-onnx provider（coreml/mps/cpu）")
+    args, _ = parser.parse_known_args()
 
     setup_logging()
     jarvis = JarvisV2(cli_mode=args.cli)
