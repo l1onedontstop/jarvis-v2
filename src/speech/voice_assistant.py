@@ -313,14 +313,22 @@ def _env_bool(name: str, default: bool) -> bool:
 _load_dotenv()
 
 
-# ── 主脑引擎选择（assistants.json 顶层 engine 字段，默认 openclaw）──────────
-def _load_engine() -> str:
-    """读取 assistants.json 顶层 engine：openclaw（默认）| hermes。"""
+# ── 主脑引擎选择（assistants.json 顶层 engine 字段）──────────
+# 引擎工厂在运行时读取配置并创建实例，替代旧模块级 if/elif/else。
+# 引擎切换不需要改代码，改 assistants.json 的 engine 字段 + 重启即可。
+
+
+def _get_engine_type() -> str:
+    """返回当前配置的 engine 类型字符串。委托给 engine_factory。"""
     try:
-        with open(_ASSISTANTS_CFG_PATH, "r", encoding="utf-8") as f:
-            return (json.load(f).get("engine") or "openclaw").strip().lower()
+        from engine_factory import get_engine_type as _get
+        return _get()
     except Exception:
-        return "openclaw"
+        return "claude-code"
+
+
+# 保留 _load_engine 别名，兼容其他模块的旧引用
+_load_engine = _get_engine_type
 
 
 def _load_overlay_debug() -> bool:
@@ -350,22 +358,8 @@ def _load_dock_autohide() -> bool:
         return False
 
 
-_ENGINE = _load_engine()
-if _ENGINE == "hermes":
-    from hermes_bridge import get_bridge  # noqa: E402
-
-    print("[引擎] 主脑：Hermes（一角色一 profile 一网关）")
-elif _ENGINE == "claude-code":
-    from claude_engine import get_bridge  # noqa: E402
-
-    print("[引擎] 主脑：Claude Code")
-else:
-    from openclaw_bridge_websocket import get_bridge  # noqa: E402
-
-    if _ENGINE != "openclaw":
-        print(f"[引擎] 未知 engine='{_ENGINE}'，回退 OpenClaw")
-    else:
-        print("[引擎] 主脑：OpenClaw")
+# 保留 _load_engine 别名，兼容其他模块的旧引用
+_load_engine = _get_engine_type
 
 # ── 声纹验证配置 ────────────────────────────────────────────
 _SPEAKER_MODEL_PATH = os.path.join(_PROJECT_DIR, "models", "3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx")
@@ -1564,8 +1558,12 @@ class VoiceAssistant:
         # 与历史会话 lane 保持一致；WS 桥用 chat.abort/sessions.reset 控制面 RPC，
         # 不再把 /stop、/clear 作为聊天消息排进同一 lane，从根上消除 "Command lane cleared"。
         agent_id = assistant_id.replace("-", "_")
-        self.openclaw = get_bridge(agent_id=agent_id, namespace=agent_id)
+        from engine_factory import create_engine
+        engine_inst, label = create_engine(agent_id=agent_id, namespace=agent_id)
+        self._engine_label = label
+        self.openclaw = engine_inst
         self.openclaw.precheck_async()
+        print(f"[引擎] 主脑：{label}")
 
         # 跨会话持久上下文读取器：注入 Agent 引擎（无论 fastMode 开不开都注）
         # 让 Agent 有长期记忆，同时避免它自己去翻 JSONL 文件。
@@ -1588,7 +1586,7 @@ class VoiceAssistant:
             return
 
         try:
-            # v2: 使用 Claude Haiku 作为快速路径
+            # 快路径始终用 Claude Haiku（轻量分流，与主引擎后端无关）
             _speech_dir = os.path.dirname(os.path.abspath(__file__))
             _intel_dir = os.path.join(os.path.dirname(_speech_dir), "intelligence")
             if _intel_dir not in sys.path:
@@ -1616,9 +1614,8 @@ class VoiceAssistant:
             print(f"[分流] 快路径初始化失败（忽略，全走 agent）: {e}")
             self._fast_path = None
 
-    @staticmethod
-    def _agent_label():
-        return "Hermes" if _ENGINE == "hermes" else "OpenClaw"
+    def _agent_label(self):
+        return getattr(self, "_engine_label", "Agent")
 
     def _detect_assistant_from_keyword(self, keyword_result: str) -> str:
         """从唤醒词检测结果识别是哪个 assistant"""
@@ -3365,7 +3362,7 @@ class VoiceAssistant:
         )
         if use_fast:
             try:
-                from fast_path_claude import AgentHandoff
+                from fast_path import AgentHandoff
                 return fp.send_and_wait_stream(
                     text, on_chunk=on_chunk, on_start=on_start, on_end=on_end,
                 )

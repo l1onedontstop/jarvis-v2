@@ -52,11 +52,26 @@ def _openclaw_soul_path(agent_id: str) -> str | None:
     return p if os.path.exists(p) else None
 
 
+def _project_prompts_path(agent_id: str) -> str | None:
+    """api / claude-code 引擎：读项目内 prompts/{agent_id}/SOUL.md"""
+    aid = _norm_agent(agent_id)
+    # 从本文件位置推算项目根目录
+    proj = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)
+    )))
+    p = os.path.join(proj, "prompts", aid, "SOUL.md")
+    return p if os.path.exists(p) else None
+
+
 def _soul_path(engine: str, agent_id: str) -> str | None:
     aid = _norm_agent(agent_id)
-    if (engine or "").strip().lower() == "hermes":
+    eng = (engine or "").strip().lower()
+    if eng == "hermes":
         p = os.path.join(_hermes_home(), "profiles", aid, "SOUL.md")
         return p if os.path.exists(p) else None
+    if eng == "claude-code":
+        p = _project_prompts_path(agent_id)
+        return p if p else _openclaw_soul_path(aid)
     return _openclaw_soul_path(aid)
 
 

@@ -191,11 +191,4 @@ class FastPathClaude:
             raise AgentHandoff(task=text, original_text=text, reason=f"error:{e}")
 
 
-class AgentHandoff(Exception):
-    """快路径失败 → 交给主引擎"""
-
-    def __init__(self, task, original_text, reason="model"):
-        super().__init__(f"handoff({reason}): {task[:60]}")
-        self.task = task
-        self.original_text = original_text
-        self.reason = reason
+from fast_path import AgentHandoff  # noqa: E402 — 共享定义，消除重复
