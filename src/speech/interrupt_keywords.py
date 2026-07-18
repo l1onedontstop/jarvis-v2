@@ -86,7 +86,7 @@ def _load_en_phone(kws_model_dir: str) -> dict:
 
 def _load_interrupt_words(project_dir: str) -> dict:
     """从 assistants.json 读 {assistant_id: [打断词, ...]}。"""
-    path = os.path.join(project_dir, "assistants.json")
+    path = os.path.join(project_dir, "config", "assistants.json")
     try:
         with open(path, "r", encoding="utf-8") as f:
             cfg = json.load(f)
