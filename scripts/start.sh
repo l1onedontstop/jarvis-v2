@@ -173,4 +173,4 @@ trap cleanup SIGINT SIGTERM
 
 echo "启动语音助手..."
 cd "${PROJECT_DIR}"
-exec "$VENV_PYTHON" -u -m src.speech.voice_assistant --provider "$PROVIDER" "$@"
+exec "$VENV_PYTHON" -u src/main.py --provider "$PROVIDER" "$@"

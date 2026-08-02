@@ -26,4 +26,4 @@ done
 
 # 启动语音助手
 echo "⚡ 启动贾维斯 v2（语音模式）..."
-python3 -m src.speech.voice_assistant "$@"
+python3 src/main.py "$@"
