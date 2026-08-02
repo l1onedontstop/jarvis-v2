@@ -18,6 +18,8 @@ from pathlib import Path
 import audio
 from assistants.tts import AssistantTTS, NullAssistantTTS
 
+logger = logging.getLogger(__name__)
+
 _env_file = Path(__file__).parent.parent / ".env"
 if _env_file.exists():
     for line in _env_file.read_text(encoding="utf-8").splitlines():
@@ -137,23 +139,23 @@ def play_prebuilt_voice(name: str, fallback_text: str = None):
 
 
 def text_to_speech_play(text: str, speed: float = 1.0, **kwargs):
-    print(f"[DEBUG tts] text_to_speech_play called: {text[:30]}...")
+    logger.debug("text_to_speech_play called: %s...", text[:30])
     if not text:
-        print("[TTS] 文本为空")
+        logger.debug("TTS 文本为空")
         return
 
     cleaned_text = _clean_text_for_tts(text)
     if not cleaned_text:
-        print(f"[TTS] 文本清理后为空: {text[:50]}")
+        logger.debug("TTS 文本清理后为空: %s", text[:50])
         return
 
-    print(f"[TTS] 开始合成 {len(cleaned_text)} 字...", flush=True)
+    logger.info("开始合成 %d 字...", len(cleaned_text))
 
     def _speak():
         try:
-            print(f"[DEBUG tts] _speak called, text={cleaned_text[:20]}...")
+            logger.debug("_speak called, text=%s...", cleaned_text[:20])
             if not _assistant_tts.is_available():
-                print("[TTS] TTS 不可用")
+                logger.warning("TTS 不可用")
                 return
 
             # 长句不一次性整段合成：每 4 句一批，逐批合成并顺序播放
@@ -167,9 +169,9 @@ def text_to_speech_play(text: str, speed: float = 1.0, **kwargs):
                         os.unlink(output_path)
                     except Exception:
                         pass
-            print("[TTS] 播放完成")
+            logger.info("TTS 播放完成")
         except Exception as e:
-            print(f"[TTS] 异常: {type(e).__name__}: {e}")
+            logger.error("TTS 异常: %s: %s", type(e).__name__, e)
         finally:
             _tts_playing.clear()
 

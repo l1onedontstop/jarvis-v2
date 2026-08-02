@@ -122,7 +122,7 @@ def _trim_silence(audio_samples, sample_rate, threshold=0.003, keep_ms=200):
 
     trimmed_ms = (len(audio_samples) - len(trimmed)) * 1000 / sample_rate
     if trimmed_ms > 10:
-        print(f"[DEBUG] 修剪尾部静音: {trimmed_ms:.1f}ms, 原{len(audio_samples)}->现{len(trimmed)} samples")
+        logger.debug("修剪尾部静音: %.1fms, 原%d->现%d samples", trimmed_ms, len(audio_samples), len(trimmed))
 
     return trimmed
 

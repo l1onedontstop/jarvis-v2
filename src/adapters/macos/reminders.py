@@ -11,6 +11,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _esc(s: str) -> str:
+    """AppleScript 字符串转义：双引号和反斜杠必须转义，防止注入/脚本破坏。"""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
 class MacOSRemindersAdapter:
     """macOS 提醒事项适配器"""
 
@@ -45,7 +50,7 @@ class MacOSRemindersAdapter:
         script = f'''
         tell application "Reminders"
             tell list "提醒事項"
-                make new reminder with properties {{name:"{title}"}}
+                make new reminder with properties {{name:"{_esc(title)}"}}
             end tell
         end tell
         return true
@@ -58,7 +63,7 @@ class MacOSRemindersAdapter:
         tell application "Reminders"
             repeat with lst in lists
                 repeat with rem in (reminders in lst whose completed is false)
-                    if name of rem contains "{title}" then
+                    if name of rem contains "{_esc(title)}" then
                         set completed of rem to true
                     end if
                 end repeat

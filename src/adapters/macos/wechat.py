@@ -12,6 +12,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _esc(s: str) -> str:
+    """AppleScript 字符串转义：双引号和反斜杠必须转义，防止注入/脚本破坏。"""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
 class MacOSWeChatAdapter:
     """macOS 微信适配器"""
 
@@ -56,10 +61,10 @@ class MacOSWeChatAdapter:
         ], capture_output=True, timeout=3)
         time.sleep(0.3)
 
-        # 输入联系人名字
+        # 输入联系人名字（转义防注入）
         subprocess.run([
             "osascript", "-e",
-            f'tell application "System Events" to keystroke "{contact}"'
+            f'tell application "System Events" to keystroke "{_esc(contact)}"'
         ], capture_output=True, timeout=3)
         time.sleep(0.5)
 
@@ -70,8 +75,8 @@ class MacOSWeChatAdapter:
         ], capture_output=True, timeout=3)
 
     def _type_message(self, message: str):
-        # 写入剪贴板
-        subprocess.run(["osascript", "-e", f'set the clipboard to "{message}"'],
+        # 写入剪贴板（转义防注入）
+        subprocess.run(["osascript", "-e", f'set the clipboard to "{_esc(message)}"'],
                        capture_output=True, timeout=3)
         # Cmd+V 粘贴
         subprocess.run([

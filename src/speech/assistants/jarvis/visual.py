@@ -65,7 +65,7 @@ class JarvisVisual(AssistantVisual):
         if self.socket:
             try:
                 self.socket.close()
-            except:
+            except OSError:
                 pass
         self.connected = False
 

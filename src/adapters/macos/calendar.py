@@ -14,6 +14,11 @@ from ..base import PlatformAdapter
 logger = logging.getLogger(__name__)
 
 
+def _esc(s: str) -> str:
+    """AppleScript 字符串转义：双引号和反斜杠必须转义，防止注入/脚本破坏。"""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
 class MacOSCalendarAdapter:
     """macOS 日历适配器"""
 
@@ -60,7 +65,7 @@ class MacOSCalendarAdapter:
             set startDate's minutes to 0
             set startDate's seconds to 0
             set endDate to startDate + (60 * minutes)
-            make new event at theCal with properties {{summary:"{title}", start date:startDate, end date:endDate}}
+            make new event at theCal with properties {{summary:"{_esc(title)}", start date:startDate, end date:endDate}}
         end tell
         return true
         '''

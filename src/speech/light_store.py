@@ -18,7 +18,9 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 本文件在 src/speech/ 下，需 3 层 dirname 才到项目根（speech → src → 根）。
+# 之前少算一层会指向 src/config/，导致 light_patterns.json 永远加载失败。
+_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _STORE_PATH = os.path.join(_PROJECT_DIR, "config", "light_patterns.json")
 
 _lock = threading.RLock()
