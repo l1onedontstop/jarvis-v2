@@ -12,7 +12,7 @@
 |------|------|
 | 🎙️ **语音唤醒** | 离线唤醒词检测（sherpa-onnx KWS），说 "Jarvis" / "贾维斯" 即唤醒 |
 | 🧠 **Claude Code 驱动** | 全功能 AI 助手：问答、文件操作、系统控制、网页搜索 |
-| 🗣️ **TTS 语音合成** | Piper 英音（贾维斯）+ VITS 中文（林妹妹）+ 金属感音效后处理 |
+| 🗣️ **TTS 语音合成** | JARVIS-V2 MeloTTS ONNX 中英混合语音（默认）+ 可选 Piper 英音 + VITS 中文 |
 | 🔐 **声纹验证** | 3D-Speaker 声纹识别，只有你的声音能唤醒 |
 | 🤖 **Agent 编排** | 说"组队"自动进入多 Agent 协作模式 |
 | 🖥️ **Flutter HUD** | 粒子效果悬浮窗 + 控制中心调试面板 |
@@ -65,6 +65,11 @@ python3 scripts/enroll_speaker.py
 
 说 **"Jarvis"** 或 **"贾维斯"** 唤醒。
 
+默认贾维斯 TTS 使用 `jarvis_v2_onnx_lang_sch`，模型目录为
+`models/jarvis-v2-melotts-onnx-lang-sch/`。模型来源为 ModelScope 数据集
+`rubintry/jarvis` 中的 `jarvis-v2-melotts-onnx-lang-sch.zip`；模型文件不会提交到仓库。
+旧的英文 Piper 声音仍可通过 `config/assistants.json` 中的 `jarvis` 配置独立选择。
+
 ---
 
 ## 📋 系统要求
@@ -90,7 +95,7 @@ jarvis-v2/
 │   ├── adapters/        # 系统集成：日历、提醒、微信、系统控制
 │   └── main.py          # 入口
 ├── config/              # 助手配置、关键词、快捷指令定义
-├── models/              # sherpa-onnx + Piper + VITS 模型
+├── models/              # MeloTTS ONNX + sherpa-onnx + Piper + VITS 模型
 ├── ui/                  # Flutter HUD + Control Center
 ├── scripts/             # 工具脚本（声纹录入、测试等）
 ├── prompts/             # SOUL.md 角色提示词
