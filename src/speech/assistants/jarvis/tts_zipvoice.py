@@ -17,7 +17,7 @@ import soundfile as sf
 
 logger = logging.getLogger(__name__)
 
-_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 ZIPVOICE_DIR = os.path.join(
     _PROJECT_DIR, "models", "sherpa-onnx-zipvoice-distill-int8-zh-en-emilia"
 )

@@ -191,12 +191,10 @@ class AssistantInstance:
 
             return MacosSayTTS(self._tts_config(spec))
 
-        # 零样本克隆说话人：由 tts_configs.<spec>.engine 指定
-        tts_cfg = self._tts_config(spec)
-        if tts_cfg.get("engine") == "zipvoice":
-            from assistants.jarvis.tts import ZipVoiceTTS
+        if spec == "jarvis_v2_onnx_lang_sch":
+            from assistants.jarvis.tts import JarvisV2OnnxTTS
 
-            return ZipVoiceTTS(tts_cfg)
+            return JarvisV2OnnxTTS(self._tts_config(spec))
 
         if spec and ":" in spec:
             try:
